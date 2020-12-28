@@ -1,0 +1,12 @@
+# ignore the node_modules directory
+frontend/node_modules/
+
+# Ignore the build/deploy directories
+service/code/
+rs_deploy/templates/
+rs_deploy/static/
+rs_deploy/copied/
+
+# credentials when under Windows Service
+service/cgi/.winsvc.toml
+

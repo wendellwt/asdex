@@ -1,0 +1,11 @@
+{
+    "http://172.26.21.40:3939": {
+        "server_url": "http://172.26.21.40:3939",
+        "filename": "/home/wturner/flask_apps/asdex_disp/rs_deploy",
+        "app_url": "http://172.26.21.40:3939/connect/#/apps/188",
+        "app_id": "8f8ad458-5be3-4172-b3d5-46b2b26f90ea",
+        "app_guid": "8f8ad458-5be3-4172-b3d5-46b2b26f90ea",
+        "title": "show_geojson",
+        "app_mode": "python-api"
+    }
+}
