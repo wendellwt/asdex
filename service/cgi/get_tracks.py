@@ -22,7 +22,7 @@ from shapely.geometry import LineString
 
 # ------------------------------------------------------------------
 
-go_back = 1   # search back this many minutes
+go_back = 3   # search back this many minutes
 
 #==========================================================
 
@@ -126,11 +126,17 @@ FROM (
         select track, ptime, position
         from asdex
         where ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
-                          at time zone 'Etc/UTC'  order by ptime
+                          at time zone 'Etc/UTC'
+        order by track, ptime
         ) as foo
     group by track
     )
 AS t(id, geom);""" % then
+
+    # nope for all variants: group by track, ptime order by ptime, track
+    #group by track
+    #group by track
+    #nope: order by ptime
 
     lgr.info("calling get - asdex")
     lgr.debug(sql)
@@ -139,7 +145,15 @@ AS t(id, geom);""" % then
 
     res = [ geojson.loads(row[0]) for row in results]
 
-    fc = { "type": "FeatureCollection", "features": res }
+    #fc = { "type": "FeatureCollection", "features": res }
+
+    fc = { "type": "FeatureCollection",
+           "features": res,
+           "crs": { "type": "name",
+                    "properties": { "name": "urn:ogc:def:crs:EPSG::4326"
+                   }
+               }
+     }
 
     return(fc)
 
