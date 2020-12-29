@@ -9,7 +9,7 @@ vue.config.js:
 	echo "asdi config"
 
 deploy:
-	echo already done in config.js: cp ../rs_deploy/static/* ~/swim2018/service/code
+	echo "no need for separate deploy step on asdi-db"
 
 endif
 
@@ -21,7 +21,7 @@ vue.config.js:
 	echo "faa config"
 
 deploy:
-	echo already done in config.js: cd ../rs_deploy/static_HELP .and. ./deploy_me.sh && cd ..
+	echo "not here; cd ../rs_deploy and ./deploy_me.sh"
 
 endif
 
