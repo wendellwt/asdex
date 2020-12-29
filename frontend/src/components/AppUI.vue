@@ -54,7 +54,8 @@ export default {
 
   data () {
       return {
-        filename: "asdex:enter filename here",
+        //filename: "asdex:enter filename here",
+        filename: "/home/data/wturner/caroline/DAL1024.gjsn",
    }
   },
   methods: {

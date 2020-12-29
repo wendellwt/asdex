@@ -22,7 +22,8 @@
       <!-- flight path features layer -->
       <vl-layer-vector >
         <vl-source-vector :url="geojsonUrl"
-                          :features.sync="features" />
+                          :features.sync="geojFeatures" />
+        <vl-style-func :factory="geojStyleFuncFactory"></vl-style-func>
       </vl-layer-vector>
 
       <!-- kml features layer -->
@@ -34,9 +35,25 @@
       <!-- asdex layer -->
       <vl-layer-vector >
         <vl-source-vector :url="asdexUrl"
-                          :features.sync="features" />
+                          :features.sync="asdexFeatures" />
         <vl-style-func :factory="asdexStyleFuncFac" />
       </vl-layer-vector>
+
+      <!-- ========== popup ========= -->
+   <vl-interaction-select :features.sync="geojFeatures"></vl-interaction-select>
+
+    <vl-overlay v-for="feature in geojFeatures"
+                :key="feature.id"
+                :position="feature.geometry.coordinates[0]">
+      <div style="background: #ccf">
+        {{ feature.properties.display }}
+      </div>
+    </vl-overlay>
+
+    <!-- display in popup now formed by python lambda -->
+        <!-- Feature ID: {{ feature.id }}
+        Name: {{ feature.properties.ORIG_TIME }}
+        Src: {{ feature.properties.SOURCE_TYPE }} -->
 
       <!-- ========== end ========= -->
     </vl-map>
@@ -71,7 +88,7 @@ const methods = {
       return new KML()
     },
 
-    // attempt to color lines
+    // ------------ attempt to color lines
     asdexStyleFuncFac() {
       const activestyle = new Style({
           stroke: new Stroke({
@@ -88,7 +105,29 @@ const methods = {
         }
         return activestyle
      }
-  }
+    },
+    // ------------ attempt to color lines
+    geojStyleFuncFactory() {
+      const unkStyle = new Style({
+          stroke: new Stroke({ color: 'black', width: 3.25, })
+      })
+
+      return (feature) => {
+        if (feature.get('SOURCE_TYPE')) {
+          if (feature.get('SOURCE_TYPE')=='S') {
+            return new Style({ stroke: new Stroke({ color: 'red', width: 3.25, }) })
+          }
+          if (feature.get('SOURCE_TYPE')=='F') {
+            return new Style({ stroke: new Stroke({ color: 'blue', width: 3.25, }) })
+          }
+          if (feature.get('SOURCE_TYPE')=='A') {
+            return new Style({ stroke: new Stroke({ color: 'magenta', width: 3.25, }) })
+          }
+          return unkStyle;
+        }
+        return unkStyle;
+     }
+   }
 }
 
 // ==========================================================
@@ -104,12 +143,12 @@ export default {
         rotation: 0,
 
         geojsonUrl: '',
-        features: [],
+        geojFeatures: [],
 
         kmlUrl: '',
 
         asdexUrl: '',
-        asdexFeats: [],
+        asdexFeatures: []
 
       }
     },
