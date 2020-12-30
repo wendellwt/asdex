@@ -15,31 +15,42 @@
              :rotation.sync="rotation"></vl-view>
 
       <!-- ========== layers ========= -->
+      <!-- OpenStreetMap base layer
+      -->
       <vl-layer-tile id="osm">
         <vl-source-osm></vl-source-osm>
       </vl-layer-tile>
 
-      <!-- flight path features layer -->
+      <!-- flight path features layer - geojson file retrieval via url
+          TODO: swap out default url loader for custom loader (for error checking)
+          almost: https://github.com/ghettovoice/vuelayers/issues/59
+          uses style function/factory to color item based on geojson properties
+
+      -->
       <vl-layer-vector >
         <vl-source-vector :url="geojsonUrl"
                           :features.sync="geojFeatures" />
         <vl-style-func :factory="geojStyleFuncFactory"></vl-style-func>
       </vl-layer-vector>
 
-      <!-- kml features layer -->
+      <!-- kml features layer
+      -->
       <vl-layer-vector >
           <vl-source-vector :url="kmlUrl"
                             :format-factory="kmlFormatFactory" />
       </vl-layer-vector>
 
-      <!-- asdex layer -->
+      <!-- asdex layer
+      -->
       <vl-layer-vector >
         <vl-source-vector :url="asdexUrl"
                           :features.sync="asdexFeatures" />
         <vl-style-func :factory="asdexStyleFuncFac" />
       </vl-layer-vector>
 
-      <!-- ========== popup ========= -->
+      <!-- ========== popup =========
+          note: 'display' string in geojson properties was crafted by python
+      -->
    <vl-interaction-select :features.sync="geojFeatures"></vl-interaction-select>
 
     <vl-overlay v-for="feature in geojFeatures"
@@ -49,11 +60,6 @@
         {{ feature.properties.display }}
       </div>
     </vl-overlay>
-
-    <!-- display in popup now formed by python lambda -->
-        <!-- Feature ID: {{ feature.id }}
-        Name: {{ feature.properties.ORIG_TIME }}
-        Src: {{ feature.properties.SOURCE_TYPE }} -->
 
       <!-- ========== end ========= -->
     </vl-map>
@@ -84,11 +90,10 @@ const methods = {
     },
 
     kmlFormatFactory () {
-      //return new ol.format.KML()
       return new KML()
     },
 
-    // ------------ attempt to color lines
+    // ------------ ASDEX attempt to color lines
     asdexStyleFuncFac() {
       const activestyle = new Style({
           stroke: new Stroke({
@@ -109,13 +114,13 @@ const methods = {
     // ------------ attempt to color lines
     geojStyleFuncFactory() {
       const unkStyle = new Style({
-          stroke: new Stroke({ color: 'black', width: 3.25, })
+          stroke: new Stroke({ color: 'brown', width: 3.25, })
       })
 
       return (feature) => {
         if (feature.get('SOURCE_TYPE')) {
           if (feature.get('SOURCE_TYPE')=='S') {
-            return new Style({ stroke: new Stroke({ color: 'red', width: 3.25, }) })
+            return new Style({ stroke: new Stroke({ color: 'green', width: 3.25, }) })
           }
           if (feature.get('SOURCE_TYPE')=='F') {
             return new Style({ stroke: new Stroke({ color: 'blue', width: 3.25, }) })
@@ -132,6 +137,7 @@ const methods = {
 
 // ==========================================================
 
+// center map on center of usa
 var KSTL = [-90.3700289, 38.7486972];
 
 export default {
@@ -157,6 +163,8 @@ export default {
 
   mounted () {
 
+    // ---- receive vuejs message from AppUI, insert query into reactive
+    // ---- location which apparently fires off a url request
     // -------------------------
     this.$root.$on('geojsonurl', (the_query) => {
       console.log("geojson:"+the_query);
@@ -177,8 +185,6 @@ export default {
     })
     // -------------------------
   },
-
-// ==========================================================
 }
 
 </script>
