@@ -21,7 +21,7 @@ vue.config.js:
 	echo "faa config"
 
 deploy:
-	echo "not here; cd ../rs_deploy and ./deploy_me.sh"
+	echo "now do this:  cd ../rs_deploy; ./deploy_me.sh"
 
 endif
 
