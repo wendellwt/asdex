@@ -109,13 +109,13 @@ const methods = {
     // ------------ attempt to color lines
     geojStyleFuncFactory() {
       const unkStyle = new Style({
-          stroke: new Stroke({ color: 'black', width: 3.25, })
+          stroke: new Stroke({ color: 'brown', width: 3.25, })
       })
 
       return (feature) => {
         if (feature.get('SOURCE_TYPE')) {
           if (feature.get('SOURCE_TYPE')=='S') {
-            return new Style({ stroke: new Stroke({ color: 'red', width: 3.25, }) })
+            return new Style({ stroke: new Stroke({ color: 'green', width: 3.25, }) })
           }
           if (feature.get('SOURCE_TYPE')=='F') {
             return new Style({ stroke: new Stroke({ color: 'blue', width: 3.25, }) })
