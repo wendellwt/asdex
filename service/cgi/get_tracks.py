@@ -121,17 +121,17 @@ def query_using_postgis(lgr, then):
     sql = """ set time zone UTC;
 SELECT ST_AsGeoJSON(t.*)
 FROM (
-    select track, ST_MakeLine(position)::geometry
+    select track, acid, actype, ST_MakeLine(position)::geometry
     FROM (
-        select track, ptime, position
+        select track, acid, actype, ptime, position
         from asdex
         where ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
                           at time zone 'Etc/UTC'
         order by track, ptime
         ) as foo
-    group by track
+    group by track, acid, actype
     )
-AS t(id, geom);""" % then
+AS t(id, acid, actype, geom);""" % then
 
     # nope for all variants: group by track, ptime order by ptime, track
     #group by track
