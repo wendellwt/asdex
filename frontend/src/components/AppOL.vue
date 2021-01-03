@@ -40,12 +40,17 @@
                             :format-factory="kmlFormatFactory" />
       </vl-layer-vector>
 
-      <!-- asdex layer
-      -->
+      <!-- asdex layer ==========================  -->
       <vl-layer-vector >
-        <vl-source-vector :url="asdexUrl"
-                          :features.sync="asdexFeatures" />
+
+        <vl-source-vector
+                  :features.sync="asdexFeatures"
+                  :url="asdexUrl"
+                  :loader-factory="loaderFactory"
+                  :update="aaaFeatures"
+                  />
         <vl-style-func :factory="asdexStyleFuncFac" />
+
       </vl-layer-vector>
 
       <!-- ========== popup =========
@@ -79,7 +84,55 @@ import KML        from 'ol/format/KML'
 
 // ==========================================================
 
+var global_asdexUrl = 'bogus';
+
 const methods = {
+
+    loaderFactory: (vm) => (extent, resolution, projection) => {
+      console.log("inside loaderFactory");
+
+//nope: console.log(this.$refs.vectorSource.$source.getUrl());
+//let my_url = this.$refs.vectorSource.$source.getUrl();
+//console.log(my_url);
+// undefined: console.log(vm.$source.getUrl());
+console.log("this print is just for lint:" , extent, resolution, projection);
+
+// =============== duplicate =================
+      return fetch(global_asdexUrl)
+        .then(response => response.json())
+        .then(data =>  {
+            console.log("then(data)");
+            console.log(typeof data);
+
+        // =======================================
+        let dlist = [];
+        // ALL OF IT: data.features.length;
+        for (let k = 0; k < 8; k++) {   // <<<<<<<<<<<< FIXED
+            let elem = { acid: data.features[k].properties.id, actype:'PA-28'};
+            dlist.push(elem);
+        }
+//this.$root.$emit('dlist', (dlist) );
+// =============== duplicate =================
+
+
+console.log(dlist);
+console.log("++++ vm:");
+console.log(vm);
+console.log("++++ this:");
+console.log(this);
+//console.log(this.$refs.data);
+//console.log(this.$refs.data.asdexUrl);
+//console.log(this.$refs.$data);
+//console.log(this.$refs.$data.asdexUrl);
+//console.log("++++");
+        // this <<<<<<<< is not defined???
+// app.$emit('dlist', (dlist) );
+
+//console.log("after app.$emit");
+        // =======================================
+        return(data);
+     })
+   },
 
     onMapMounted () {
       // now ol.Map instance is ready and we can work with it directly
@@ -153,9 +206,9 @@ export default {
 
         kmlUrl: '',
 
-        asdexUrl: '',
-        asdexFeatures: []
-
+        asdexUrl: 'bogus',
+        asdexFeatures: [],
+        aaaFeatures: []   // rather old: https://github.com/ghettovoice/vuelayers/issues/25
       }
     },
 
@@ -181,10 +234,43 @@ export default {
     this.$root.$on('asdexurl', (the_query) => {
       console.log("asdex::"+the_query);
 
+      // NOTE: loacerFactory does the actual retrieve
+      global_asdexUrl = the_query;  // Q: is there a better way to communicate this???
       this.asdexUrl = the_query;
+// =============== duplicate =================
+      return fetch(global_asdexUrl)
+        .then(response => response.json())
+        .then(data =>  {
+            console.log("then(data)");
+            console.log(typeof data);
+            let dlist = [];
+            for (let k = 0; k < data.features.length; k++) {
+                let elem = { acid: data.features[k].properties.id, actype:'PA-28'};
+                dlist.push(elem);
+            }
+            this.$root.$emit('dlist', (dlist) );
+        })
+// =============== duplicate =================
     })
-    // -------------------------
-  },
+  }, // ---- mounted
+
+  watch: {
+    asdexFeatures: function (val) {
+      console.log("+++++++++++ watch on asdexFeatures:");
+      console.log(val);
+      console.log(this.asdexFeatures);
+      console.log(this.aaaFeatures);
+      console.log("+++++++++++ done with asdexFeatures");
+    },
+    aaaFeatures: function (val) {
+      console.log("watch on aaaFeatures:");
+      console.log(val);
+    },
+    asdexUrl: function (val) {
+      console.log("watch on asdexUrl:");
+      console.log(val);
+    }
+  }
 }
 
 </script>
