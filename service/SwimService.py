@@ -1,12 +1,22 @@
 # cherry py service
 
-# to run manually:
-# WTurner@ASDI-DB ~/swim2018/service
-# $ /cygdrive/c/Users/wturner/Python37/python.exe SwimService.py  start
-# Starting service CherryPyService
+# =========================== to run manually:
 
-# done 3/1/2019: am editing code at work to run later at city place:
-#  -) remove all DEBUG areas/comments
+# cd ~/realab/asdex/service
+# /cygdrive/c/Users/wturner/Python37/python.exe SwimService.py  start
+# ... Starting service CherryPyService
+
+# =========================== to production:
+
+# start the "CherryPy Service" using the "Services(Local)" tab in Services
+
+# =========================== to view logs:
+
+#  tail -f /cygdrive/c/temp/cherrypy_access.log
+#  tail -f /cygdrive/c/temp/cherrypy_error.log
+#  tail -f /cygdrive/c/temp/swimservice.log
+
+#===================================================================
 
 """
 this code was taken from example here:
