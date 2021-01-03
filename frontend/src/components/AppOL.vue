@@ -89,37 +89,38 @@ var global_asdexUrl = 'bogus';
 const methods = {
 
     loaderFactory: (vm) => (extent, resolution, projection) => {
-      console.log("inside loaderFactory");
+      // console.log("inside loaderFactory");
 
 //nope: console.log(this.$refs.vectorSource.$source.getUrl());
 //let my_url = this.$refs.vectorSource.$source.getUrl();
 //console.log(my_url);
 // undefined: console.log(vm.$source.getUrl());
-console.log("this print is just for lint:" , extent, resolution, projection);
+console.log("this print is just for lint:", vm, extent, resolution, projection);
 
 // =============== duplicate =================
       return fetch(global_asdexUrl)
         .then(response => response.json())
         .then(data =>  {
-            console.log("then(data)");
-            console.log(typeof data);
+            // console.log("then(data)");
+            // console.log(typeof data);
 
-        // =======================================
+// =======================================
         let dlist = [];
         // ALL OF IT: data.features.length;
         for (let k = 0; k < 8; k++) {   // <<<<<<<<<<<< FIXED
-            let elem = { acid: data.features[k].properties.id, actype:'PA-28'};
+            let elem = { track:  data.features[k].properties.id,
+                         acid:   data.features[k].properties.acid,
+                         actype: data.features[k].properties.actype  };
             dlist.push(elem);
         }
 //this.$root.$emit('dlist', (dlist) );
 // =============== duplicate =================
 
-
-console.log(dlist);
-console.log("++++ vm:");
-console.log(vm);
-console.log("++++ this:");
-console.log(this);
+// console.log(dlist);
+// console.log("++++ vm:");
+// console.log(vm);
+// console.log("++++ this:");
+// console.log(this);
 //console.log(this.$refs.data);
 //console.log(this.$refs.data.asdexUrl);
 //console.log(this.$refs.$data);
@@ -243,33 +244,37 @@ export default {
         .then(data =>  {
             console.log("then(data)");
             console.log(typeof data);
+// =======================================
             let dlist = [];
             for (let k = 0; k < data.features.length; k++) {
-                let elem = { acid: data.features[k].properties.id, actype:'PA-28'};
+                let elem = { track:  data.features[k].properties.id,
+                             acid:   data.features[k].properties.acid,
+                             actype: data.features[k].properties.actype  };
                 dlist.push(elem);
             }
             this.$root.$emit('dlist', (dlist) );
+// =============== duplicate =================
         })
 // =============== duplicate =================
     })
   }, // ---- mounted
 
   watch: {
-    asdexFeatures: function (val) {
-      console.log("+++++++++++ watch on asdexFeatures:");
-      console.log(val);
-      console.log(this.asdexFeatures);
-      console.log(this.aaaFeatures);
-      console.log("+++++++++++ done with asdexFeatures");
-    },
-    aaaFeatures: function (val) {
-      console.log("watch on aaaFeatures:");
-      console.log(val);
-    },
-    asdexUrl: function (val) {
-      console.log("watch on asdexUrl:");
-      console.log(val);
-    }
+    // asdexFeatures: function (val) {
+      // console.log("+++++++++++ watch on asdexFeatures:");
+      // console.log(val);
+      // console.log(this.asdexFeatures);
+      // console.log(this.aaaFeatures);
+      // console.log("+++++++++++ done with asdexFeatures");
+    // },
+    // aaaFeatures: function (val) {
+      // console.log("watch on aaaFeatures:");
+      // console.log(val);
+    // },
+    // asdexUrl: function (val) {
+      // console.log("watch on asdexUrl:");
+      // console.log(val);
+    // }
   }
 }
 

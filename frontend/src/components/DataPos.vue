@@ -5,11 +5,19 @@
 <div class="timestamp">{{last_rcvd}}</div>
 
 <ul id="example-1" class="scrolling" >
-  <li class="datalist" v-for="item in datablocks" :key="item.acid">
-    acid:{{ item.acid }}
+
+  <li  class="datalist"
+       v-for="item in datablocks"
+       :key="item.track"
+       @click="datablocklist(item)" >
+
+    track: {{ item.track }}
     <br/>
-    type:{{ item.actype }}
+    acid: {{ item.acid }}
+    <br/>
+    type: {{ item.actype }}
   </li>
+
 </ul>
 
   </div>
@@ -23,25 +31,11 @@ export default {
         last_rcvd: new Date(),
 
         datablocks : [
-          { acid: 'N111', actype: 'C172' },
-          { acid: 'N112', actype: 'C172' },
-          { acid: 'N113', actype: 'C172' },
-          { acid: 'N114', actype: 'C172' },
-          { acid: 'N115', actype: 'C172' },
-          { acid: 'N116', actype: 'C172' },
-          { acid: 'N117', actype: 'C172' },
-          { acid: 'N118', actype: 'C172' },
-          { acid: 'N118', actype: 'C172' },
-          { acid: 'N120', actype: 'C172' },
-          { acid: 'N121', actype: 'C172' },
-          { acid: 'N122', actype: 'C172' },
-          { acid: 'N123', actype: 'C172' },
-          { acid: 'N124', actype: 'C172' },
-          { acid: 'N125', actype: 'C172' },
-          { acid: 'N126', actype: 'C172' },
-          { acid: 'N127', actype: 'C172' },
-          { acid: 'N129', actype: 'C172' },
-          { acid: 'N130', actype: 'C172' } ]
+          { track: 1, acid: 'N111', actype: 'C172' },
+          { track: 2, acid: 'N112', actype: 'C172' },
+          { track: 3, acid: 'N113', actype: 'C172' },
+          { track: 4, acid: 'N114', actype: 'C172' },
+          { track: 5, acid: 'N115', actype: 'C172' } ]
       }
     },
 
@@ -49,8 +43,21 @@ export default {
 
       this.$root.$on('dlist', (dlist) => {
       console.log("DataPos received dlist");
+
+      // FIXME: find out how/why PostGIS allowed duplicate track
+      // FIXME: remove duplicate key / track !!!
+
       this.datablocks = dlist;
     })
+  },
+
+  methods: {
+      datablocklist: function(item) {
+          //console.log("datablocklist");
+          //console.log(item);
+          console.log(item.key);
+          console.log(item.track + ":" + item.acid + "_" + item.actype);
+      }
   }
 }
 
