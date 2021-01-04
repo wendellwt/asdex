@@ -12,6 +12,7 @@
 # -------------------------------------------------------
 
 import os
+import sys
 import pytz
 import datetime
 import psycopg2
@@ -37,7 +38,11 @@ go_back = 3   # search back this many minutes
 try:
     import geopandas as gpd
     # we're on Linux, under RConnect, with Flask
-    HAVE_gpd = True
+
+    # ISSUE: need GeoPandas' to_json to put id adjacent to properites, not
+    # within it; hence this:
+    # SOULD BE: HAVE_gpd = True
+    HAVE_gpd = False
 
     # ISSUE: in RConnect deployment: use Settings panel to configure these
     connect_alchemy = "postgresql+psycopg2://"            + \
@@ -114,40 +119,13 @@ def query_using_geopandas(lgr, then):
 
 # ======================================================================
 
-# on windows (asdi-db, without geopandas), do everything in PostGIS
-
-def query_using_postgis(lgr, then):
-
-    # =========================== original; id is in properties
-    # note added: and acid != 'unk'
-
-    sql_old = """ set time zone UTC;
-SELECT ST_AsGeoJSON(t.*)
-FROM (
-    select track, acid, actype, ST_MakeLine(position)::geometry
-    FROM (
-        select track, acid, actype, ptime, position
-        from asdex
-        where ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
-                          at time zone 'Etc/UTC'
-        and acid != 'unk'
-        order by track, ptime
-        ) as foo
-    group by track, acid, actype
-    )
-AS t(id, acid, actype, geom);""" % then
-
-    # nope for all variants: group by track, ptime order by ptime, track
-    #group by track
-    #group by track
-    #nope: order by ptime
+def get_path_lines(lgr, then):
 
     # =========================== 1/3: id equal to properties
     #   (for vuelayers fast load)
 
     # https://gis.stackexchange.com/questions/14514/exporting-feature-geojson-from-postgis
     #'properties', to_jsonb(row) - 'position'
-
 
     sql = """ set time zone UTC;
 SELECT jsonb_build_object(
@@ -175,19 +153,86 @@ SELECT jsonb_build_object(
     lgr.debug(sql)
 
     results = engine.execute(sql)
-    lgr.info("done")
+    lgr.debug("done")
 
     # ---- results is an interable QueryObject
 
     #old: res = [ geojson.loads(row[0]) for row in results]
     # new:
-    res = [ row[0] for row in results]
+    res_lines = [ row[0] for row in results]
 
+    return(res_lines)
+
+# ----------------------------------------------------------------------
+
+def get_path_points(lgr, then):
+
+    # =========================== 1/4: get last Point for a/c symbol
+    # 'id',         track,
+
+    sql = """ set time zone UTC;
+
+SELECT jsonb_build_object(
+    'type',       'Feature',
+    'geometry',   ST_AsGeoJSON(acpoint)::jsonb,
+    'properties', to_jsonb(row) - 'mtime' - 'acpoint'
+  ) AS feature
+  FROM ( select distinct a.track, a.acid, maxt.mtime, a.actype, a.position::geometry as acpoint
+FROM
+( select distinct track, acid, actype, max(ptime) as mtime
+     from asdex
+      where ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
+                          at time zone 'Etc/UTC'
+     and acid != 'unk'
+     group by track, acid, actype
+) maxt,
+asdex a
+WHERE a.track  = maxt.track
+AND   a.acid   = maxt.acid
+AND   a.actype = maxt.actype
+AND   a.ptime  = maxt.mtime
+ORDER BY a.track
+) row;
+
+    ; """ % then
+
+    lgr.info("calling get - asdex")
+    lgr.debug(sql)
+
+    results = engine.execute(sql)
+    lgr.debug("done")
+
+    # ---- results is an interable QueryObject
+
+    res_points = [ row[0] for row in results]
+
+    return(res_points)
+
+# ----------------------------------------------------------------------
+from pprint import pprint
+
+# on windows (asdi-db, without geopandas), do everything in PostGIS
+
+def query_using_postgis(lgr, then):
+
+    res_lines = get_path_lines(lgr, then)
+
+    res_points = get_path_points(lgr, then)
+
+    #pprint(res_lines[:2])
+    #print()
+    #pprint(res_points[:2])
+    #print()
+
+    #pprint(res_lines[:2] + res_points[:2])
+
+    # ==========================================================
     # ---- add in a crs
     fc = { "type": "FeatureCollection",
-           "features": res,
+          "features": res_points + res_lines,
            "crs": { "type": "name",
-                    "properties": { "name": "urn:ogc:def:crs:EPSG::4326"
+                    "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+                                     # old: "urn:ogc:def:crs:EPSG::4326"
                    }
                }
      }
@@ -201,7 +246,7 @@ SELECT jsonb_build_object(
 
 def query_asdex( lgr, location ):
 
-    lgr.info("inside query_asdex")
+    # print("inside query_asdex")
 
     # search for ptime > this many minutes back from "right now"
     then = datetime.datetime.now( tz=pytz.utc ) \
@@ -218,9 +263,12 @@ def query_asdex( lgr, location ):
 
 # ##############################################################
 
+import json
+
 if __name__ == "__main__NOT":
 
     features = query_asdex( None, "KIAD" )
 
-    print(features)
+    #print("+++++++")
+    print(json.dumps(features))
 
