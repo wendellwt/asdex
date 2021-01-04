@@ -43,7 +43,8 @@
       <!-- asdex layer ==========================  -->
       <vl-layer-vector >
 
-<!-- ======================================================= -->
+<!-- ============ method 1: use loader-factory ============ -->
+
 <!-- note: PostGIS put id (which is track num) in geojson at the same
      level with type and geometry which allows this to work: -->
 
@@ -52,12 +53,11 @@
                   :url="asdexUrl"
                   :loader-factory="loaderFactory"
                   />
-<!-- ======================================================= -->
 
-<!-- displays linestrings, but is *SLOW* (if unk included)  -->
-<!-- ref == html id/class tag??? -->
+<!-- ============ method 2: use v-for ============ -->
 
-<!-- 10:30pm: (works fine, btw)
+<!-- displays linestrings, but is *SLOW* (if unk included)  - - >
+
       <vl-source-vector ref="asdexSource">
         <vl-feature v-for="feature in asdexObject.features"
                     :key="feature.id"
@@ -66,7 +66,8 @@
           <vl-geom-line-string :coordinates="feature.geometry.coordinates" />
         </vl-feature>
         </vl-source-vector>
-10:30pm: -->
+
+< ! - - ============ method end ============ -->
 
       <vl-style-func :factory="asdexStyleFuncFac" />
 
@@ -87,7 +88,7 @@
       </div>
     </vl-overlay>
 
-      <!-- ========== end ========= -->
+      <!-- ========== end layers ========= -->
     </vl-map>
 
   </div>
@@ -103,28 +104,28 @@ import Stroke     from 'ol/style/Stroke'
 import Style      from 'ol/style/Style'
 import KML        from 'ol/format/KML'
 
+import Text       from 'ol/style/Text'
+import Fill       from 'ol/style/Fill'
+import Circle     from 'ol/style/Circle'
+
 import { Vector as VectorLayer } from 'ol/layer'
 
 // ==========================================================
-const highlightStyle = new Style({
-                         stroke: new Stroke({ color: 'magenta', width: 5.0 }) });
-const undoStyle = new Style({
-                         stroke: new Stroke({ color: 'green',   width: 5.0 }) });
-
-const src_s_style = new Style({ stroke: new Stroke({ color: 'green',   width: 3.0 }) })
-const src_f_style = new Style({ stroke: new Stroke({ color: 'blue',    width: 3.0 }) })
-const src_a_style = new Style({ stroke: new Stroke({ color: 'magenta', width: 3.0 }) })
-const unk_style   = new Style({ stroke: new Stroke({ color: 'brown',   width: 3.0 }) })
-
-const plainStyle = new Style({
-                          stroke: new Stroke({ color: 'purple',   width: 3.0 }) })
-const activeStyle = new Style({
-                          stroke: new Stroke({ color: 'orange', width: 5.0 }) })
+const highlightSt =new Style({ stroke: new Stroke({ color: 'magenta',width: 5.0 }) })
+const undoStyle   =new Style({ stroke: new Stroke({ color: 'green',  width: 5.0 }) })
+const src_s_style =new Style({ stroke: new Stroke({ color: 'green',  width: 3.0 }) })
+const src_f_style =new Style({ stroke: new Stroke({ color: 'blue',   width: 3.0 }) })
+const src_a_style =new Style({ stroke: new Stroke({ color: 'magenta',width: 3.0 }) })
+const unk_style   =new Style({ stroke: new Stroke({ color: 'brown',  width: 3.0 }) })
+const plainStyle  =new Style({ stroke: new Stroke({ color: 'purple', width: 3.0 }) })
+const activeStyle =new Style({ stroke: new Stroke({ color: 'orange', width: 5.0 }) })
 // ==========================================================
 
 var global_asdexUrl = 'bogus';
 
 const methods = {
+
+// ============ method 1: use loader-factory
 
     loaderFactory: (vm) => (extent, resolution, projection) => {
 
@@ -134,7 +135,7 @@ console.log("inside loaderFactory:", vm, extent, resolution, projection);
         .then(response => response.json())
         .then(data =>  {
 
-/*********************** do this if $emit works:
+/* ********************* do this if $emit works:
         let dlist = [];
         for (let k = 0; k < data.features.length; k++) {
             let elem = { track:  data.features[k].properties.track,
@@ -143,7 +144,7 @@ console.log("inside loaderFactory:", vm, extent, resolution, projection);
             dlist.push(elem);
         }
 //this.$root.$emit('dlist', (dlist) );
-***********************/
+********************* */
 
         return(data);
      })
@@ -166,7 +167,30 @@ console.log("inside loaderFactory:", vm, extent, resolution, projection);
     asdexStyleFuncFac() {
 
       return (feature) => {
-console.log("aSFF:" + feature.get('track') + "," + this.highLightMe);
+console.log("aSFF+g:" + feature.get('track') + "," +
+              this.highLightMe + ',' + feature.getGeometry().getType() );
+
+        // ------------------------------
+        let targetStyle = new Style({
+          image: new Circle({
+            radius: 10,
+            fill: new Fill({
+                color: '#fff',
+            }),
+            stroke: new Stroke({
+              color: '#F44336',
+            }),
+          }),
+          text: new Text({
+              text: String(feature.get('acid')), // get feature property
+          }),
+        })
+        // ------------------------------
+
+        if (feature.getGeometry().getType() == "Point") {
+              return targetStyle;
+        }
+
         if (feature.key == this.highLightMe) {
           return activeStyle;
         }
@@ -257,7 +281,7 @@ export default {
       // --------- this statement causes aSFF to fire with valid arguments
       this.highlightedFeat = a_layer[0].getSource().getFeatureById(the_track);
 
-      this.highlightedFeat.setStyle(highlightStyle);
+      this.highlightedFeat.setStyle(highlightSt);
 
       // ================================
     })
@@ -267,16 +291,23 @@ export default {
       console.log("asdex::"+the_query);
 
       // NOTE: loacerFactory does the actual retrieve
-      global_asdexUrl = the_query;  // Q: is there a better way to communicate this???
-      this.asdexUrl = the_query;
-// =============== duplicate =================
+      global_asdexUrl = the_query;  // Q: is there a better way to communicate this??
+      this.asdexUrl = the_query;   // this fires off method 1 via vl-source-vector
+
+//  ============ method 2: use v-for ============
+
       return fetch(global_asdexUrl)
         .then(response => response.json())
         .then(data =>  {
             console.log("then(data)");
             console.log(typeof data);    // FIXME: remove duplicate keys
-      // back to loader: this.asdexObject = data;
-// =======================================
+            console.log(data);    // FIXME: remove duplicate keys
+
+// *************** do this if loader-factory method not chosen to retrieve map data:
+      // this.asdexObject = data;
+
+// *************** do this if $emit in loader-factory method DOESN'T work:
+
             let dlist = [];
             for (let k = 0; k < data.features.length; k++) {
                 let elem = { track:  data.features[k].properties.track,
@@ -285,8 +316,8 @@ export default {
                 dlist.push(elem);
             }
             this.$root.$emit('dlist', (dlist) );
-        })
 // =============== duplicate =================
+        })
     })
   }, // ---- mounted
 
