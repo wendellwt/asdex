@@ -45,18 +45,31 @@ export default {
       console.log("DataPos received dlist");
 
       // FIXME: find out how/why PostGIS allowed duplicate track
-      // FIXME: remove duplicate key / track !!!
+      // why do we need to do this here?: remove duplicate key / track
 
-      this.datablocks = dlist;
+      this.datablocks = this.removeDuplicates(dlist, 'track');
     })
   },
 
   methods: {
+
+ // =========================
+ // https://firstclassjs.com/remove-duplicate-objects-from-javascript-array-how-to-performance-comparison/
+ removeDuplicates: function(array, key) {
+    return array.filter((obj, index, self) =>
+        index === self.findIndex((el) => (
+            el[key] === obj[key]
+        ))
+    )
+},
+// =========================
+
       datablocklist: function(item) {
           //console.log("datablocklist");
           //console.log(item);
-          console.log(item.key);
-          console.log(item.track + ":" + item.acid + "_" + item.actype);
+          // console.log(item.key); // undefined
+          console.log("highlightthis-emit:" + item.track + ":" + item.acid + "_" + item.actype);
+          this.$root.$emit('highlightthis', (item.track) );
       }
   }
 }
