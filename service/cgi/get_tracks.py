@@ -118,6 +118,8 @@ def query_using_geopandas(lgr, then):
 
 def query_using_postgis(lgr, then):
 
+    # note added: and acid != 'unk'
+
     sql = """ set time zone UTC;
 SELECT ST_AsGeoJSON(t.*)
 FROM (
@@ -127,6 +129,7 @@ FROM (
         from asdex
         where ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
                           at time zone 'Etc/UTC'
+        and acid != 'unk'
         order by track, ptime
         ) as foo
     group by track, acid, actype
