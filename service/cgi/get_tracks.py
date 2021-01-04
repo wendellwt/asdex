@@ -118,9 +118,10 @@ def query_using_geopandas(lgr, then):
 
 def query_using_postgis(lgr, then):
 
+    # =========================== original; id is in properties
     # note added: and acid != 'unk'
 
-    sql = """ set time zone UTC;
+    sql_old = """ set time zone UTC;
 SELECT ST_AsGeoJSON(t.*)
 FROM (
     select track, acid, actype, ST_MakeLine(position)::geometry
@@ -141,15 +142,48 @@ AS t(id, acid, actype, geom);""" % then
     #group by track
     #nope: order by ptime
 
+    # =========================== 1/3: id equal to properties
+    #   (for vuelayers fast load)
+
+    # https://gis.stackexchange.com/questions/14514/exporting-feature-geojson-from-postgis
+    #'properties', to_jsonb(row) - 'position'
+
+
+    sql = """ set time zone UTC;
+SELECT jsonb_build_object(
+    'type',       'Feature',
+    'id',         track,
+    'geometry',   ST_AsGeoJSON(linest)::jsonb,
+    'properties', to_jsonb(row) - 'linest'
+  ) AS feature
+  FROM (
+ select track, acid, actype, ST_MakeLine(position)::geometry as linest
+    FROM (
+        select track, acid, actype, ptime, position
+        from asdex
+        where ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
+                          at time zone 'Etc/UTC'
+        and acid != 'unk'
+        order by track, ptime
+        ) as foo
+    group by track, acid, actype
+) row; """ % then
+
+    # ==========================================================
+
     lgr.info("calling get - asdex")
     lgr.debug(sql)
 
     results = engine.execute(sql)
+    lgr.info("done")
 
-    res = [ geojson.loads(row[0]) for row in results]
+    # ---- results is an interable QueryObject
 
-    #fc = { "type": "FeatureCollection", "features": res }
+    #old: res = [ geojson.loads(row[0]) for row in results]
+    # new:
+    res = [ row[0] for row in results]
 
+    # ---- add in a crs
     fc = { "type": "FeatureCollection",
            "features": res,
            "crs": { "type": "name",
