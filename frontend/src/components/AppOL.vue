@@ -45,13 +45,11 @@
 
 <!-- ======================================================= -->
 <!-- "secret" use of :key to force refresh??? -->
-        <!-- OLD: vl-source-vector
+        <vl-source-vector
                   :features.sync="asdexFeatures"
                   :url="asdexUrl"
                   :loader-factory="loaderFactory"
-                  :update="highLightMe"
-                  :key="highLightMe"
-                  / -->
+                  />
     <!-- vl-overlay v-for="feature in newAsdexFeatures"
                 :key="feature.id"
                 :position="feature.geometry.coordinates[0]" -->
@@ -60,14 +58,19 @@
 <!-- displays linestrings, but is *SLOW*  -->
 <!-- ref == html id/class tag??? -->
 
+<!-- 10:30pm: id is NOT in properties, just in main -->
+
+<!-- 10:30pm:
       <vl-source-vector ref="asdexSource">
         <vl-feature v-for="feature in asdexObject.features"
-                    :key="feature.properties.id"
-                    :id="feature.properties.id"
+                    :key="feature.id"
+                    :id="feature.id"
                     :properties="feature.properties">
           <vl-geom-line-string :coordinates="feature.geometry.coordinates" />
         </vl-feature>
         </vl-source-vector>
+10:30pm: -->
+
       <vl-style-func :factory="asdexStyleFuncFac" />
 
 <!-- ======================================================= -->
@@ -120,15 +123,16 @@ console.log("inside loaderFactory:", vm, extent, resolution, projection);
         .then(response => response.json())
         .then(data =>  {
 
-// =======================================
+/***********************
         let dlist = [];
         for (let k = 0; k < data.features.length; k++) {
-            let elem = { track:  data.features[k].properties.id,
+            let elem = { track:  data.features[k].properties.track,
                          acid:   data.features[k].properties.acid,
                          actype: data.features[k].properties.actype  };
             dlist.push(elem);
         }
 //this.$root.$emit('dlist', (dlist) );
+***********************/
 // =============== duplicate =================
 
         return(data);
@@ -157,7 +161,7 @@ console.log("inside loaderFactory:", vm, extent, resolution, projection);
       })
       const activeStyle = new Style({
           stroke: new Stroke({
-            color: 'magenta',
+            color: 'orange',
             width: 5.0,
           })
       })
@@ -284,18 +288,18 @@ export default {
 
       // NOTE: loacerFactory does the actual retrieve
       global_asdexUrl = the_query;  // Q: is there a better way to communicate this???
-      // NOT now: this.asdexUrl = the_query;
+      this.asdexUrl = the_query;
 // =============== duplicate =================
       return fetch(global_asdexUrl)
         .then(response => response.json())
         .then(data =>  {
             console.log("then(data)");
             console.log(typeof data);    // FIXME: remove duplicate keys
-      this.asdexObject = data;
+      // back to loader: this.asdexObject = data;
 // =======================================
             let dlist = [];
             for (let k = 0; k < data.features.length; k++) {
-                let elem = { track:  data.features[k].properties.id,
+                let elem = { track:  data.features[k].properties.track,
                              acid:   data.features[k].properties.acid,
                              actype: data.features[k].properties.actype  };
                 dlist.push(elem);
