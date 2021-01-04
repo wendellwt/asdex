@@ -44,23 +44,20 @@
       <vl-layer-vector >
 
 <!-- ======================================================= -->
-<!-- "secret" use of :key to force refresh??? -->
+<!-- note: PostGIS put id (which is track num) in geojson at the same
+     level with type and geometry which allows this to work: -->
+
         <vl-source-vector
                   :features.sync="asdexFeatures"
                   :url="asdexUrl"
                   :loader-factory="loaderFactory"
                   />
-    <!-- vl-overlay v-for="feature in newAsdexFeatures"
-                :key="feature.id"
-                :position="feature.geometry.coordinates[0]" -->
 <!-- ======================================================= -->
 
-<!-- displays linestrings, but is *SLOW*  -->
+<!-- displays linestrings, but is *SLOW* (if unk included)  -->
 <!-- ref == html id/class tag??? -->
 
-<!-- 10:30pm: id is NOT in properties, just in main -->
-
-<!-- 10:30pm:
+<!-- 10:30pm: (works fine, btw)
       <vl-source-vector ref="asdexSource">
         <vl-feature v-for="feature in asdexObject.features"
                     :key="feature.id"
@@ -109,6 +106,21 @@ import KML        from 'ol/format/KML'
 import { Vector as VectorLayer } from 'ol/layer'
 
 // ==========================================================
+const highlightStyle = new Style({
+                         stroke: new Stroke({ color: 'magenta', width: 5.0 }) });
+const undoStyle = new Style({
+                         stroke: new Stroke({ color: 'green',   width: 5.0 }) });
+
+const src_s_style = new Style({ stroke: new Stroke({ color: 'green',   width: 3.0 }) })
+const src_f_style = new Style({ stroke: new Stroke({ color: 'blue',    width: 3.0 }) })
+const src_a_style = new Style({ stroke: new Stroke({ color: 'magenta', width: 3.0 }) })
+const unk_style   = new Style({ stroke: new Stroke({ color: 'brown',   width: 3.0 }) })
+
+const plainStyle = new Style({
+                          stroke: new Stroke({ color: 'purple',   width: 3.0 }) })
+const activeStyle = new Style({
+                          stroke: new Stroke({ color: 'orange', width: 5.0 }) })
+// ==========================================================
 
 var global_asdexUrl = 'bogus';
 
@@ -118,12 +130,11 @@ const methods = {
 
 console.log("inside loaderFactory:", vm, extent, resolution, projection);
 
-// =============== duplicate =================
       return fetch(global_asdexUrl)
         .then(response => response.json())
         .then(data =>  {
 
-/***********************
+/*********************** do this if $emit works:
         let dlist = [];
         for (let k = 0; k < data.features.length; k++) {
             let elem = { track:  data.features[k].properties.track,
@@ -133,7 +144,6 @@ console.log("inside loaderFactory:", vm, extent, resolution, projection);
         }
 //this.$root.$emit('dlist', (dlist) );
 ***********************/
-// =============== duplicate =================
 
         return(data);
      })
@@ -152,19 +162,8 @@ console.log("inside loaderFactory:", vm, extent, resolution, projection);
     },
 
     // ------------ ASDEX attempt to color lines
+    // sun pm: now works all the time, and nothing undefined:
     asdexStyleFuncFac() {
-      const plainStyle = new Style({
-          stroke: new Stroke({
-            color: 'blue',
-            width: 3.0,
-          })
-      })
-      const activeStyle = new Style({
-          stroke: new Stroke({
-            color: 'orange',
-            width: 5.0,
-          })
-      })
 
       return (feature) => {
 console.log("aSFF:" + feature.get('track') + "," + this.highLightMe);
@@ -176,24 +175,15 @@ console.log("aSFF:" + feature.get('track') + "," + this.highLightMe);
     },
     // ------------ attempt to color lines
     geojStyleFuncFactory() {
-      const unkStyle = new Style({
-          stroke: new Stroke({ color: 'brown', width: 3.25, })
-      })
 
       return (feature) => {
         if (feature.get('SOURCE_TYPE')) {
-          if (feature.get('SOURCE_TYPE')=='S') {
-            return new Style({ stroke: new Stroke({ color: 'green', width: 3.25, }) })
-          }
-          if (feature.get('SOURCE_TYPE')=='F') {
-            return new Style({ stroke: new Stroke({ color: 'blue', width: 3.25, }) })
-          }
-          if (feature.get('SOURCE_TYPE')=='A') {
-            return new Style({ stroke: new Stroke({ color: 'magenta', width: 3.25, }) })
-          }
-          return unkStyle;
+          if (feature.get('SOURCE_TYPE')=='S') { return src_s_style; }
+          if (feature.get('SOURCE_TYPE')=='F') { return src_f_style; }
+          if (feature.get('SOURCE_TYPE')=='A') { return src_a_style; }
+          return unk_style;
         }
-        return unkStyle;
+        return unk_style;
      }
    }
 }
@@ -252,18 +242,6 @@ export default {
 
       this.highLightMe = the_track;
 // ================================
-      const activeStyle = new Style({
-          stroke: new Stroke({
-            color: 'magenta',
-            width: 5.0,
-          })
-      });
-      const undoStyle = new Style({
-          stroke: new Stroke({
-            color: 'green',
-            width: 5.0,
-          })
-      });
 
       // turn off the previous one:
       if (this.highlightedFeat != 0) {
@@ -276,8 +254,10 @@ export default {
                    layer.getSource().getFeatureById(the_track)
       })
 
+      // --------- this statement causes aSFF to fire with valid arguments
       this.highlightedFeat = a_layer[0].getSource().getFeatureById(the_track);
-      this.highlightedFeat.setStyle(activeStyle);
+
+      this.highlightedFeat.setStyle(highlightStyle);
 
       // ================================
     })
