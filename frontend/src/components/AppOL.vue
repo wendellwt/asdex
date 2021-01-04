@@ -43,13 +43,34 @@
       <!-- asdex layer ==========================  -->
       <vl-layer-vector >
 
-        <vl-source-vector
+<!-- ======================================================= -->
+<!-- "secret" use of :key to force refresh??? -->
+        <!-- OLD: vl-source-vector
                   :features.sync="asdexFeatures"
                   :url="asdexUrl"
                   :loader-factory="loaderFactory"
-                  :update="aaaFeatures"
-                  />
-        <vl-style-func :factory="asdexStyleFuncFac" />
+                  :update="highLightMe"
+                  :key="highLightMe"
+                  / -->
+    <!-- vl-overlay v-for="feature in newAsdexFeatures"
+                :key="feature.id"
+                :position="feature.geometry.coordinates[0]" -->
+<!-- ======================================================= -->
+
+<!-- displays linestrings, but is *SLOW*  -->
+<!-- ref == html id/class tag??? -->
+
+      <vl-source-vector ref="asdexSource">
+        <vl-feature v-for="feature in asdexObject.features"
+                    :key="feature.properties.id"
+                    :id="feature.properties.id"
+                    :properties="feature.properties">
+          <vl-geom-line-string :coordinates="feature.geometry.coordinates" />
+        </vl-feature>
+        </vl-source-vector>
+      <vl-style-func :factory="asdexStyleFuncFac" />
+
+<!-- ======================================================= -->
 
       </vl-layer-vector>
 
@@ -82,6 +103,8 @@ import Stroke     from 'ol/style/Stroke'
 import Style      from 'ol/style/Style'
 import KML        from 'ol/format/KML'
 
+import { Vector as VectorLayer } from 'ol/layer'
+
 // ==========================================================
 
 var global_asdexUrl = 'bogus';
@@ -89,25 +112,17 @@ var global_asdexUrl = 'bogus';
 const methods = {
 
     loaderFactory: (vm) => (extent, resolution, projection) => {
-      // console.log("inside loaderFactory");
 
-//nope: console.log(this.$refs.vectorSource.$source.getUrl());
-//let my_url = this.$refs.vectorSource.$source.getUrl();
-//console.log(my_url);
-// undefined: console.log(vm.$source.getUrl());
-console.log("this print is just for lint:", vm, extent, resolution, projection);
+console.log("inside loaderFactory:", vm, extent, resolution, projection);
 
 // =============== duplicate =================
       return fetch(global_asdexUrl)
         .then(response => response.json())
         .then(data =>  {
-            // console.log("then(data)");
-            // console.log(typeof data);
 
 // =======================================
         let dlist = [];
-        // ALL OF IT: data.features.length;
-        for (let k = 0; k < 8; k++) {   // <<<<<<<<<<<< FIXED
+        for (let k = 0; k < data.features.length; k++) {
             let elem = { track:  data.features[k].properties.id,
                          acid:   data.features[k].properties.acid,
                          actype: data.features[k].properties.actype  };
@@ -116,21 +131,6 @@ console.log("this print is just for lint:", vm, extent, resolution, projection);
 //this.$root.$emit('dlist', (dlist) );
 // =============== duplicate =================
 
-// console.log(dlist);
-// console.log("++++ vm:");
-// console.log(vm);
-// console.log("++++ this:");
-// console.log(this);
-//console.log(this.$refs.data);
-//console.log(this.$refs.data.asdexUrl);
-//console.log(this.$refs.$data);
-//console.log(this.$refs.$data.asdexUrl);
-//console.log("++++");
-        // this <<<<<<<< is not defined???
-// app.$emit('dlist', (dlist) );
-
-//console.log("after app.$emit");
-        // =======================================
         return(data);
      })
    },
@@ -149,20 +149,25 @@ console.log("this print is just for lint:", vm, extent, resolution, projection);
 
     // ------------ ASDEX attempt to color lines
     asdexStyleFuncFac() {
-      const activestyle = new Style({
+      const plainStyle = new Style({
+          stroke: new Stroke({
+            color: 'blue',
+            width: 3.0,
+          })
+      })
+      const activeStyle = new Style({
           stroke: new Stroke({
             color: 'magenta',
-            width: 3.25,
+            width: 5.0,
           })
       })
 
       return (feature) => {
-        // help: using feature is pointless;
-        // but what is an 'arrow function' with no args???
-        if (feature.get('acid')) {
-          return activestyle
+console.log("aSFF:" + feature.get('track') + "," + this.highLightMe);
+        if (feature.key == this.highLightMe) {
+          return activeStyle;
         }
-        return activestyle
+        return plainStyle;
      }
     },
     // ------------ attempt to color lines
@@ -207,9 +212,15 @@ export default {
 
         kmlUrl: '',
 
+        // all OLD, INOP:
         asdexUrl: 'bogus',
         asdexFeatures: [],
-        aaaFeatures: []   // rather old: https://github.com/ghettovoice/vuelayers/issues/25
+        aaaFeatures: [],   // rather old: https://github.com/ghettovoice/vuelayers/issues/25
+        highLightMe: 15,  // track id of item to highlight
+
+        // NEW:
+        asdexObject : {},  // the FeatureCollection
+        highlightedFeat: 0
       }
     },
 
@@ -232,18 +243,55 @@ export default {
       this.kmlUrl = the_query;
     })
     // -------------------------
+    this.$root.$on('highlightthis', (the_track) => {
+      console.log("highlightthis rcvd:"+the_track);
+
+      this.highLightMe = the_track;
+// ================================
+      const activeStyle = new Style({
+          stroke: new Stroke({
+            color: 'magenta',
+            width: 5.0,
+          })
+      });
+      const undoStyle = new Style({
+          stroke: new Stroke({
+            color: 'green',
+            width: 5.0,
+          })
+      });
+
+      // turn off the previous one:
+      if (this.highlightedFeat != 0) {
+          this.highlightedFeat.setStyle(undoStyle);
+      }
+
+      // find the vector layer that has a Feature with this id
+      const a_layer = this.$refs.map.getLayers().filter(layer => {
+        return layer instanceof VectorLayer &&
+                   layer.getSource().getFeatureById(the_track)
+      })
+
+      this.highlightedFeat = a_layer[0].getSource().getFeatureById(the_track);
+      this.highlightedFeat.setStyle(activeStyle);
+
+      // ================================
+    })
+
+    // -------------------------
     this.$root.$on('asdexurl', (the_query) => {
       console.log("asdex::"+the_query);
 
       // NOTE: loacerFactory does the actual retrieve
       global_asdexUrl = the_query;  // Q: is there a better way to communicate this???
-      this.asdexUrl = the_query;
+      // NOT now: this.asdexUrl = the_query;
 // =============== duplicate =================
       return fetch(global_asdexUrl)
         .then(response => response.json())
         .then(data =>  {
             console.log("then(data)");
-            console.log(typeof data);
+            console.log(typeof data);    // FIXME: remove duplicate keys
+      this.asdexObject = data;
 // =======================================
             let dlist = [];
             for (let k = 0; k < data.features.length; k++) {
@@ -253,29 +301,11 @@ export default {
                 dlist.push(elem);
             }
             this.$root.$emit('dlist', (dlist) );
-// =============== duplicate =================
         })
 // =============== duplicate =================
     })
   }, // ---- mounted
 
-  watch: {
-    // asdexFeatures: function (val) {
-      // console.log("+++++++++++ watch on asdexFeatures:");
-      // console.log(val);
-      // console.log(this.asdexFeatures);
-      // console.log(this.aaaFeatures);
-      // console.log("+++++++++++ done with asdexFeatures");
-    // },
-    // aaaFeatures: function (val) {
-      // console.log("watch on aaaFeatures:");
-      // console.log(val);
-    // },
-    // asdexUrl: function (val) {
-      // console.log("watch on asdexUrl:");
-      // console.log(val);
-    // }
-  }
 }
 
 </script>
