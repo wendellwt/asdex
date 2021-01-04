@@ -37,7 +37,11 @@ go_back = 3   # search back this many minutes
 try:
     import geopandas as gpd
     # we're on Linux, under RConnect, with Flask
-    HAVE_gpd = True
+
+    # ISSUE: need GeoPandas' to_json to put id adjacent to properites, not
+    # within it; hence this:
+    # SOULD BE: HAVE_gpd = True
+    HAVE_gpd = False
 
     # ISSUE: in RConnect deployment: use Settings panel to configure these
     connect_alchemy = "postgresql+psycopg2://"            + \
