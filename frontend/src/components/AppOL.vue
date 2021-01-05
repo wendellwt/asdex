@@ -43,33 +43,17 @@
       <!-- asdex layer ==========================  -->
       <vl-layer-vector >
 
-<!-- ============ method 1: use loader-factory ============ -->
-
 <!-- note: PostGIS put id (which is track num) in geojson at the same
      level with type and geometry which allows this to work: -->
 
+<!-- ============ use loader-factory ============ -->
         <vl-source-vector
                   :features.sync="asdexFeatures"
                   :url="asdexUrl"
-                  :loader-factory="loaderFactory"
+                  :loader-factory="loaderFactoryOuter"
                   />
 
-<!-- ============ method 2: use v-for ============ -->
-
-<!-- displays linestrings, but is *SLOW* (if unk included)  - - >
-
-      <vl-source-vector ref="asdexSource">
-        <vl-feature v-for="feature in asdexObject.features"
-                    :key="feature.id"
-                    :id="feature.id"
-                    :properties="feature.properties">
-          <vl-geom-line-string :coordinates="feature.geometry.coordinates" />
-        </vl-feature>
-        </vl-source-vector>
-
-< ! - - ============ method end ============ -->
-
-      <vl-style-func :factory="asdexStyleFuncFac" />
+       <vl-style-func :factory="asdexStyleFuncFac" />
 
 <!-- ======================================================= -->
 
@@ -119,23 +103,37 @@ const src_a_style =new Style({ stroke: new Stroke({ color: 'magenta',width: 3.0 
 const unk_style   =new Style({ stroke: new Stroke({ color: 'brown',  width: 3.0 }) })
 const plainStyle  =new Style({ stroke: new Stroke({ color: 'purple', width: 3.0 }) })
 const activeStyle =new Style({ stroke: new Stroke({ color: 'orange', width: 5.0 }) })
-// ==========================================================
 
-var global_asdexUrl = 'bogus';
+// ==================================================================================
 
 const methods = {
 
-// ============ method 1: use loader-factory
+    // ==========================================================
+    // https://firstclassjs.com/remove-duplicate-objects-from-javascript-array-how-to-performance-comparison/
+    // TypeError: array.filter is not a function
+    removeDuplicates_2(array, key) {
+        return array.filter((obj, index, self) =>
+            index === self.findIndex((el) => (
+                el[key] === obj[key]
+            ))
+        )
+    },
 
-    loaderFactory: (vm) => (extent, resolution, projection) => {
+    // ==========================================================
+    loaderFactoryOuter() {
+      return (extent, resolution, projection) => this.loaderFactoryInner(extent, resolution, projection)
+    },
 
-console.log("inside loaderFactory:", vm, extent, resolution, projection);
+    loaderFactoryInner(extent, resolution, projection) {
+console.log("inside loaderFactoryInner:", extent, resolution, projection);
 
-      return fetch(global_asdexUrl)
+      return fetch(this.asdexUrl)
         .then(response => response.json())
         .then(data =>  {
 
-/* ********************* do this if $emit works:
+        // clean up data (Q: how did postgis lete this happen??)
+        //NOT: let clean = this.removeDuplicates_2(data, 'id');
+
         let dlist = [];
         for (let k = 0; k < data.features.length; k++) {
             let elem = { track:  data.features[k].properties.track,
@@ -143,12 +141,12 @@ console.log("inside loaderFactory:", vm, extent, resolution, projection);
                          actype: data.features[k].properties.actype  };
             dlist.push(elem);
         }
-//this.$root.$emit('dlist', (dlist) );
-********************* */
+
+        this.$root.$emit('dlist', (dlist) );
 
         return(data);
      })
-   },
+  },
 
     onMapMounted () {
       // now ol.Map instance is ready and we can work with it directly
@@ -167,8 +165,8 @@ console.log("inside loaderFactory:", vm, extent, resolution, projection);
     asdexStyleFuncFac() {
 
       return (feature) => {
-console.log("aSFF+g:" + feature.get('track') + "," +
-              this.highLightMe + ',' + feature.getGeometry().getType() );
+// console.log("aSFF+g:" + feature.get('track') + "," +
+//              this.highLightMe + ',' + feature.getGeometry().getType() );
 
         // ------------------------------
         let targetStyle = new Style({
@@ -185,12 +183,12 @@ console.log("aSFF+g:" + feature.get('track') + "," +
               text: String(feature.get('acid')), // get feature property
           }),
         })
+
         // ------------------------------
 
         if (feature.getGeometry().getType() == "Point") {
               return targetStyle;
         }
-
         if (feature.key == this.highLightMe) {
           return activeStyle;
         }
@@ -291,33 +289,7 @@ export default {
       console.log("asdex::"+the_query);
 
       // NOTE: loacerFactory does the actual retrieve
-      global_asdexUrl = the_query;  // Q: is there a better way to communicate this??
-      this.asdexUrl = the_query;   // this fires off method 1 via vl-source-vector
-
-//  ============ method 2: use v-for ============
-
-      return fetch(global_asdexUrl)
-        .then(response => response.json())
-        .then(data =>  {
-            console.log("then(data)");
-            console.log(typeof data);    // FIXME: remove duplicate keys
-            console.log(data);    // FIXME: remove duplicate keys
-
-// *************** do this if loader-factory method not chosen to retrieve map data:
-      // this.asdexObject = data;
-
-// *************** do this if $emit in loader-factory method DOESN'T work:
-
-            let dlist = [];
-            for (let k = 0; k < data.features.length; k++) {
-                let elem = { track:  data.features[k].properties.track,
-                             acid:   data.features[k].properties.acid,
-                             actype: data.features[k].properties.actype  };
-                dlist.push(elem);
-            }
-            this.$root.$emit('dlist', (dlist) );
-// =============== duplicate =================
-        })
+      this.asdexUrl = the_query;   // this fires off loaderFactory via vl-source-vector
     })
   }, // ---- mounted
 
