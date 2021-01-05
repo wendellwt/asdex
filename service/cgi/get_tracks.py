@@ -20,6 +20,7 @@ import pandas as pd
 import geojson
 from sqlalchemy import create_engine
 from shapely.geometry import LineString
+import socket
 
 # ------------------------------------------------------------------
 
@@ -54,22 +55,29 @@ except:
     HAVE_gpd = False
     # we're on Windows, under Service, with CherryPy
 
-    conf_file = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + '.winsvc.toml'
+    if socket.gethostname() == 'JAWAXFL00172839':
+        connect_alchemy = "postgresql+psycopg2://"            + \
+                        os.environ.get('CSSI_USER')     + ':' + \
+                        os.environ.get('CSSI_PASSWORD') + '@' + \
+                        os.environ.get('CSSI_HOST')     + '/' + \
+                        os.environ.get('CSSI_DATABASE')
 
-    # $ /cygdrive/c/Users/wturner/Python37/python.exe -m pip install toml
-    import toml
+    else:
+        conf_file = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + '.winsvc.toml'
 
-    with open(conf_file) as fd:
-        raw_config = fd.read()
-    cfg = toml.loads(raw_config)
+        # $ /cygdrive/c/Users/wturner/Python37/python.exe -m pip install toml
+        import toml
 
-    # ISSUE: on asdi-db: use .winsvc.toml config file
-    connect_alchemy = "postgresql+psycopg2://"            + \
-                    cfg['CSSI_USER']     + ':' + \
-                    cfg['CSSI_PASSWORD'] + '@' + \
-                    cfg['CSSI_HOST']     + '/' + \
-                    cfg['CSSI_DATABASE']
+        with open(conf_file) as fd:
+            raw_config = fd.read()
+        cfg = toml.loads(raw_config)
 
+        # ISSUE: on asdi-db: use .winsvc.toml config file
+        connect_alchemy = "postgresql+psycopg2://"            + \
+                             cfg['CSSI_USER']     + ':' + \
+                             cfg['CSSI_PASSWORD'] + '@' + \
+                             cfg['CSSI_HOST']     + '/' + \
+                             cfg['CSSI_DATABASE']
 
 engine = create_engine(connect_alchemy)
 
@@ -246,7 +254,7 @@ def query_using_postgis(lgr, then):
 
 def query_asdex( lgr, location ):
 
-    # print("inside query_asdex")
+    lgr.info("inside query_asdex")
 
     # search for ptime > this many minutes back from "right now"
     then = datetime.datetime.now( tz=pytz.utc ) \
@@ -265,10 +273,19 @@ def query_asdex( lgr, location ):
 
 import json
 
-if __name__ == "__main__NOT":
+class NotLgr:  # pretend class to let lgr.info() work when not logging
+    def info(self, s):
+        print(s)
+    def debug(self, s):
+        print(s)
 
-    features = query_asdex( None, "KIAD" )
+if __name__ == "__main__":
 
-    #print("+++++++")
+    lgr = NotLgr()
+    lgr.info("hello sailor")
+
+    features = query_asdex( lgr, "KIAD" )
+
+    print("+++++++")
     print(json.dumps(features))
 
