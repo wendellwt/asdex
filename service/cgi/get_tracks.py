@@ -36,7 +36,11 @@ go_back = 3   # search back this many minutes
 # also, need to get postgresql credentials...
 # postgresql+psycopg2://user:passwd@asdi-db.cssiinc.com/ciwsdb
 
-try:
+# ------------------- rserver
+# production under Flask and RConnect
+
+if socket.gethostname() == 'acy_test_app_vm_rserver':
+
     import geopandas as gpd
     # we're on Linux, under RConnect, with Flask
 
@@ -51,33 +55,47 @@ try:
                     os.environ.get('CSSI_PASSWORD') + '@' + \
                     os.environ.get('CSSI_HOST')     + '/' + \
                     os.environ.get('CSSI_DATABASE')
-except:
+
+# ------------------- my faa laptop
+# local debugging
+
+if socket.gethostname() == 'JAWAXFL00172839':
+
     HAVE_gpd = False
+
+    connect_alchemy = "postgresql+psycopg2://"            + \
+                    os.environ.get('CSSI_USER')     + ':' + \
+                    os.environ.get('CSSI_PASSWORD') + '@' + \
+                    os.environ.get('CSSI_HOST')     + '/' + \
+                    os.environ.get('CSSI_DATABASE')
+
+# ------------------- asdi-db
+# production under CherryPy
+
+if socket.gethostname() == 'ASDI-DB':
+
+    HAVE_gpd = False
+
     # we're on Windows, under Service, with CherryPy
 
-    if socket.gethostname() == 'JAWAXFL00172839':
-        connect_alchemy = "postgresql+psycopg2://"            + \
-                        os.environ.get('CSSI_USER')     + ':' + \
-                        os.environ.get('CSSI_PASSWORD') + '@' + \
-                        os.environ.get('CSSI_HOST')     + '/' + \
-                        os.environ.get('CSSI_DATABASE')
+    conf_file = os.path.dirname(os.path.realpath(__file__)) + \
+                                 os.path.sep + '.winsvc.toml'
 
-    else:
-        conf_file = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + '.winsvc.toml'
+    # $ /cygdrive/c/Users/wturner/Python37/python.exe -m pip install toml
+    import toml
 
-        # $ /cygdrive/c/Users/wturner/Python37/python.exe -m pip install toml
-        import toml
+    with open(conf_file) as fd:
+        raw_config = fd.read()
+    cfg = toml.loads(raw_config)
 
-        with open(conf_file) as fd:
-            raw_config = fd.read()
-        cfg = toml.loads(raw_config)
+    # ISSUE: on asdi-db: use .winsvc.toml config file
+    connect_alchemy = "postgresql+psycopg2://"            + \
+                         cfg['CSSI_USER']     + ':' + \
+                         cfg['CSSI_PASSWORD'] + '@' + \
+                         cfg['CSSI_HOST']     + '/' + \
+                         cfg['CSSI_DATABASE']
 
-        # ISSUE: on asdi-db: use .winsvc.toml config file
-        connect_alchemy = "postgresql+psycopg2://"            + \
-                             cfg['CSSI_USER']     + ':' + \
-                             cfg['CSSI_PASSWORD'] + '@' + \
-                             cfg['CSSI_HOST']     + '/' + \
-                             cfg['CSSI_DATABASE']
+# ------------------- common
 
 engine = create_engine(connect_alchemy)
 
@@ -249,6 +267,113 @@ def query_using_postgis(lgr, then):
 
 # #######################################################################
 
+def make_props(row_track, row_acid, row_actype):
+
+    #p = { 'track':track, 'acid': acid, 'actype':actype}
+    #p = { 'track':'t', 'acid': 'a', 'actype':'y'}
+    #p = { 'track':row, 'acid':'a', 'actype':'y' }
+    #p = { 'acid':row_acid, 'actype':'y' }
+    p = { 'track':row_track, 'acid':row_acid, 'actype':row_actype }
+    return(json.dumps(p))
+
+# -----------------------------------------------------------------------
+
+def make_feat(row_props, row_geom):
+
+    # HELP: seems like going back & forth on the dumps/loads !!!
+
+    f = { "type": "Feature",
+          "properties": json.loads(row_props),
+          "geometry": json.loads(row_geom)
+        }
+
+    return(f)
+    #return(json.dumps(f))
+
+# -----------------------------------------------------------------------
+
+from shapely.geometry import mapping, shape
+from shapely.wkt import dumps, loads
+
+def using_postgis_and_pandas(lgr, then):
+
+    # ---- 1. query for all position points (as text) ordered by ptime
+
+    sql = """ set time zone UTC;
+SELECT track, acid, actype, ptime, ST_AsText(position) as position
+FROM asdex
+WHERE ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
+                          AT TIME ZONE 'Etc/UTC'
+AND acid != 'unk'
+ORDER BY ptime ; """ % then
+
+    lgr.info("calling get - asdex")
+    lgr.debug(sql)
+
+    points_df = pd.read_sql(sql, con=engine)
+
+    # ---- 2. make text points into shapely points
+
+    points_df['shp'] = points_df.apply( lambda row: loads(row['position']), axis=1)
+    points_df.drop('position', axis=1, inplace=True)
+
+    # ---- 3. make linestring (ptime order is preserved, correct?)
+
+    # aggregate these Points with the GroupBy and make them into LineString
+    # it is a Series (_sr)
+
+    # -- 3a: make list of points
+    lstring_sr = points_df.groupby(['track', 'acid', 'actype'], as_index=False)['shp'].apply(
+                                          lambda x: x.tolist())
+    lstring_df = lstring_sr.to_frame().reset_index()
+
+    lstring_df.columns = ['track', 'acid', 'actype', 'shp']
+
+    # -- 3b: get strings with at least 2 points
+
+    lstring_df.drop(lstring_df[lstring_df['shp'].map(len) < 2].index, inplace = True)
+
+    lstring_df['path_ls'] = lstring_df.apply( lambda x: LineString(x['shp']), axis=1 )
+    lstring_df.drop('shp', axis=1, inplace=True)
+
+    # ---- 4. clean up
+
+    nice_df = lstring_df.dropna()
+
+    # ---- 5. make GeoJson column of linestring
+
+    # 5a. make geom column into a GeoJson column (of text)
+    nice_df['geom'] = nice_df.apply( lambda x: json.dumps(mapping(x['path_ls'])), axis=1 )
+    nice_df.drop('path_ls', axis=1, inplace=True)
+
+    nice_df['props'] = nice_df.apply( lambda row: make_props(row['track'], row['acid'], row['actype']), axis=1 )
+
+    nice_df.drop(['track','acid','actype'], axis=1, inplace=True)
+
+    nice_df['feat'] = nice_df.apply( lambda row: make_feat(row['props'], row['geom']), axis=1 )
+
+    nice_df.drop(['props','geom'], axis=1, inplace=True)
+
+    # ---- make into FeatureColl
+    # geojson lint said this crs was the default and thus redundant
+
+    fc = { "type": "FeatureCollection",
+          "features": nice_df['feat'].tolist(),
+           #"crs": { "type": "name",
+           #         "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+           #                          # old: "urn:ogc:def:crs:EPSG::4326"
+           #        }
+           #    }
+     }
+
+    #print(json.dumps(fc))
+    #sys.exit(1)
+
+    lgr.debug("done")
+    return(fc)
+
+# #######################################################################
+
 # entry point from Flask    / app.py         (via '/get_asdex' get request)
 # entry point from CherryPy / SwimService.py (via '/get_asdex' get request)
 
@@ -259,12 +384,17 @@ def query_asdex( lgr, location ):
     # search for ptime > this many minutes back from "right now"
     then = datetime.datetime.now( tz=pytz.utc ) \
            - datetime.timedelta( minutes=go_back )
-
     # ----------------------
-    if HAVE_gpd:
-        fc = query_using_geopandas(lgr, then)
+    if socket.gethostname() == 'JAWAXFL00172839':
+
+        fc = using_postgis_and_pandas(lgr, then)
+
+    # ---------------------- regular (i.e., old)
     else:
-        fc = query_using_postgis(lgr, then)
+        if HAVE_gpd:
+            fc = query_using_geopandas(lgr, then)
+        else:
+            fc = query_using_postgis(lgr, then)
     # ----------------------
 
     return(fc)
