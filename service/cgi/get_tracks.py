@@ -347,8 +347,14 @@ def make_path_linestrings(lgr, points_df):
     # aggregate these Points with the GroupBy and make them into LineString
     # it may be a Series (_sr)
 
-    #string_sr = points_df.groupby(['track', 'acid', 'actype'],as_index=False)['shp'].apply(lambda x: x.tolist())
-    lstring_sr = points_df.groupby(['track', 'acid', 'actype'])['shp'].apply(lambda x: x.tolist())
+    # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    # @                     HELP!!! WHY is this necessary????              @
+    # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    if socket.gethostname() == 'acy_test_app_vm_rserver':
+        lstring_sr = points_df.groupby(['track', 'acid', 'actype'],as_index=False)['shp'].apply(lambda x: x.tolist())
+    else:
+        lstring_sr = points_df.groupby(['track', 'acid', 'actype']               )['shp'].apply(lambda x: x.tolist())
+    # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
     lstring_df = lstring_sr.to_frame().reset_index()
 
@@ -433,7 +439,7 @@ def find_latest_point(lgr, points_df):
 
     # +5c. make full features stanza of geojson
 
-    position_df['feat'] = position_df.apply( lambda row: make_feat(row['track'], row['props'], row['target_geom']), axis=1 )
+    position_df['feat'] = position_df.apply( lambda row: make_feat(row['track']+90000, row['props'], row['target_geom']), axis=1 )
 
     lgr.debug("====================")
     lgr.debug("position_df")
@@ -489,8 +495,8 @@ def query_asdex( lgr, location ):
     then = datetime.datetime.now( tz=pytz.utc ) \
            - datetime.timedelta( minutes=go_back )
 
-    #fc = using_postgis_and_pandas(lgr, then)
-    #return(fc)
+    fc = using_postgis_and_pandas(lgr, then)
+    return(fc)
     # ----------------------
     if socket.gethostname() == 'JAWAXFL00172839':
 
