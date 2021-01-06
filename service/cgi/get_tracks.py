@@ -435,7 +435,7 @@ def find_latest_point(lgr, points_df):
 
     # +5b. make propertie stanza of geojson
 
-    position_df['props'] = position_df.apply( lambda row: make_props(row['track']+990000, row['acid'], row['actype']), axis=1 )
+    position_df['props'] = position_df.apply( lambda row: make_props(row['track']+90000, row['acid'], row['actype']), axis=1 )
 
     # +5c. make full features stanza of geojson
 
