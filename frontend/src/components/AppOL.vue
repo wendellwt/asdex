@@ -125,28 +125,29 @@ const methods = {
     },
 
     loaderFactoryInner(extent, resolution, projection) {
+
 console.log("inside loaderFactoryInner:", extent, resolution, projection);
 
       return fetch(this.asdexUrl)
         .then(response => response.json())
         .then(data =>  {
 
-        // clean up data (Q: how did postgis lete this happen??)
-        //NOT: let clean = this.removeDuplicates_2(data, 'id');
+          // clean up data (Q: how did postgis lete this happen??)
+          //NOT: let clean = this.removeDuplicates_2(data, 'id');
 
-        let dlist = [];
-        for (let k = 0; k < data.features.length; k++) {
-            let elem = { track:  data.features[k].properties.track,
-                         acid:   data.features[k].properties.acid,
-                         actype: data.features[k].properties.actype  };
-            dlist.push(elem);
-        }
+          let dlist = [];
+          for (let k = 0; k < data.features.length; k++) {
+              let elem = { track:  data.features[k].properties.track,
+                           acid:   data.features[k].properties.acid,
+                           actype: data.features[k].properties.actype  };
+              dlist.push(elem);
+          }
 
-        this.$root.$emit('dlist', (dlist) );
+          this.$root.$emit('dlist', (dlist) );
 
-        return(data);
-     })
-  },
+          return(data);
+       })
+    },
 
     onMapMounted () {
       // now ol.Map instance is ready and we can work with it directly
@@ -169,6 +170,7 @@ console.log("inside loaderFactoryInner:", extent, resolution, projection);
 //              this.highLightMe + ',' + feature.getGeometry().getType() );
 
         // ------------------------------
+        // can't be const because of feature acid:
         let targetStyle = new Style({
           image: new Circle({
             radius: 10,
@@ -235,7 +237,6 @@ export default {
         highLightMe: 15,  // track id of item to highlight
 
         // NEW:
-        asdexObject : {},  // the FeatureCollection
         highlightedFeat: 0
       }
     },
@@ -263,7 +264,8 @@ export default {
       console.log("highlightthis rcvd:"+the_track);
 
       this.highLightMe = the_track;
-// ================================
+
+// ================================  Q: does asdexStyleFuncFac replace this???
 
       // turn off the previous one:
       if (this.highlightedFeat != 0) {
@@ -288,8 +290,8 @@ export default {
     this.$root.$on('asdexurl', (the_query) => {
       console.log("asdex::"+the_query);
 
-      // NOTE: loacerFactory does the actual retrieve
-      this.asdexUrl = the_query;   // this fires off loaderFactory via vl-source-vector
+      // this fires off loaderFactory via vl-source-vector which does the actual fetch
+      this.asdexUrl = the_query;
     })
   }, // ---- mounted
 
