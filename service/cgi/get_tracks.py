@@ -159,7 +159,8 @@ def get_path_lines(lgr, then):
     # =========================== 1/3: id equal to properties
     #   (for vuelayers fast load)
 
-    # https://gis.stackexchange.com/questions/14514/exporting-feature-geojson-from-postgis
+    # https://gis.stackexchange.com/questions/14514/exporting-feature
+    #                                                   -geojson-from-postgis
     #'properties', to_jsonb(row) - 'position'
 
     sql = """ set time zone UTC;
@@ -212,7 +213,8 @@ SELECT jsonb_build_object(
     'geometry',   ST_AsGeoJSON(acpoint)::jsonb,
     'properties', to_jsonb(row) - 'mtime' - 'acpoint'
   ) AS feature
-  FROM ( select distinct a.track, a.acid, maxt.mtime, a.actype, a.position::geometry as acpoint
+  FROM ( select distinct a.track, a.acid, maxt.mtime, a.actype,
+         a.position::geometry as acpoint
 FROM
 ( select distinct track, acid, actype, max(ptime) as mtime
      from asdex
@@ -239,7 +241,7 @@ ORDER BY a.track
 
     # ---- results is an interable QueryObject
 
-    res_points = [ row[0] for row in results]
+    res_points = [ row[0] for row in results ]
 
     return(res_points)
 
@@ -254,23 +256,7 @@ def query_using_postgis(lgr, then):
 
     res_points = get_path_points(lgr, then)
 
-    #pprint(res_lines[:2])
-    #print()
-    #pprint(res_points[:2])
-    #print()
-
-    #pprint(res_lines[:2] + res_points[:2])
-
-    # ==========================================================
-    # ---- add in a crs
-    fc = { "type": "FeatureCollection",
-          "features": res_points + res_lines,
-           "crs": { "type": "name",
-                    "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
-                                     # old: "urn:ogc:def:crs:EPSG::4326"
-                   }
-               }
-     }
+    fc = geojson.FeatureCollection( res_points + res_lines )
 
     return(fc)
 
@@ -278,27 +264,11 @@ def query_using_postgis(lgr, then):
 
 def make_props(row_track, row_acid, row_actype):
 
-    #p = { 'track':track, 'acid': acid, 'actype':actype}
-    #p = { 'track':'t', 'acid': 'a', 'actype':'y'}
-    #p = { 'track':row, 'acid':'a', 'actype':'y' }
-    #p = { 'acid':row_acid, 'actype':'y' }
-    p = { 'track':row_track, 'acid':row_acid, 'actype':row_actype }
-    return(json.dumps(p))
-
-# -----------------------------------------------------------------------
+    return( { 'track':row_track, 'acid':row_acid, 'actype':row_actype } )
 
 def make_feat(row_id, row_props, row_geom):
 
-    # HELP: seems like going back & forth on the dumps/loads !!!
-
-    f = { "type": "Feature",
-          "properties": json.loads(row_props),
-          "geometry": json.loads(row_geom),
-          "id": row_id
-        }
-
-    return(f)
-    #return(json.dumps(f))
+    return( geojson.Feature(geometry=row_geom, properties=row_props, id=row_id))
 
 # ############################################################## #
 #                 everything but without geopandas               #
@@ -329,13 +299,15 @@ ORDER BY ptime ; """ % then
 
     # ---- 2. make text points into shapely points
 
-    points_df['shp'] = points_df.apply( lambda row: loads(row['position']), axis=1)
+    points_df['shp'] = points_df.apply( lambda row: loads(row['position']),
+                                       axis=1)
 
     # groupby for track position doesn't like shapely's Point column
-    # so leaf this one here for now...
+    # but let's leave this one here for now...
     #points_df.drop('position', axis=1, inplace=True)
 
     return(points_df)
+
 # ------------------------------------------------------------------------
 
 # ---- 3. make linestring (ptime order is preserved, correct?)
@@ -351,22 +323,27 @@ def make_path_linestrings(lgr, points_df):
     # @                     HELP!!! WHY is this necessary????              @
     # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     if socket.gethostname() == 'acy_test_app_vm_rserver':
-        lstring_sr = points_df.groupby(['track', 'acid', 'actype'],as_index=False)['shp'].apply(lambda x: x.tolist())
+
+        lstring_sr= points_df.groupby(['track','acid','actype'],as_index=False)\
+                                  ['shp'].apply(lambda x: x.tolist())
     else:
-        lstring_sr = points_df.groupby(['track', 'acid', 'actype']               )['shp'].apply(lambda x: x.tolist())
+        lstring_sr= points_df.groupby(['track', 'acid', 'actype']) \
+                                   ['shp'].apply(lambda x: x.tolist())
     # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
     lstring_df = lstring_sr.to_frame().reset_index()
 
-    lstring_df.columns = ['track', 'acid', 'actype', 'shp']  # shp column was '0'
+    lstring_df.columns = ['track','acid','actype', 'shp']  # shp column was '0'
 
     # -- 3b: make sure strings have at least 2 points
 
-    lstring_df.drop(lstring_df[lstring_df['shp'].map(len) < 2].index, inplace = True)
+    lstring_df.drop(lstring_df[lstring_df['shp'].map(len) < 2].index,
+                                                                 inplace=True)
 
     # -- 3c: finally, make them into Shapely LineStrings
 
-    lstring_df['path_ls'] = lstring_df.apply( lambda x: LineString(x['shp']), axis=1 )
+    lstring_df['path_ls'] = lstring_df.apply( lambda x: LineString(x['shp']),
+                                                                 axis=1 )
 
     lstring_df.drop('shp', axis=1, inplace=True)
 
@@ -383,16 +360,19 @@ def make_features(lgr, linest_df):
 
     # 5a. make geometry stanza of geojson
 
-    linest_df['geom'] = linest_df.apply( lambda x: json.dumps(mapping(x['path_ls'])), axis=1 )
+    linest_df['geom'] = linest_df.apply( lambda x: mapping(x['path_ls']),axis=1)
+
     linest_df.drop('path_ls', axis=1, inplace=True)
 
     # 5b. make propertie stanza of geojson
 
-    linest_df['props'] = linest_df.apply( lambda row: make_props(row['track'], row['acid'], row['actype']), axis=1 )
+    linest_df['props'] = linest_df.apply( lambda row:
+                   make_props(row['track'], row['acid'], row['actype']), axis=1)
 
     # 5c. make full features stanza of geojson
 
-    linest_df['feat'] = linest_df.apply( lambda row: make_feat(row['track'], row['props'], row['geom']), axis=1 )
+    linest_df['feat'] = linest_df.apply( lambda row:
+                   make_feat(row['track'], row['props'], row['geom']), axis=1)
 
     # clean up
     linest_df.drop(['acid','actype', 'props','geom'], axis=1, inplace=True)
@@ -401,60 +381,39 @@ def make_features(lgr, linest_df):
 
 # ----------------------------------------------------------------
 
+off = 90000
+
 def find_latest_point(lgr, points_df):
-
-    #position_sr = points_df.groupby(['track', 'acid', 'actype', 'position'])['ptime'].apply(lambda x: x.max())
-    #position_sr = points_df.groupby(['track', 'acid', 'actype', 'position'])['ptime'].max()
-
-    #In [3]: idx = df.groupby(['Mt'])['count'].transform(max) == df['count']
 
     # HEY, maybe this is how to do a '.groupby' and retain the datafraem
     # (without it becoming a Series)
     # NOPE, sometimed DUPLICATE TRACKs appear!!! :-(
-    # not sure: position_sr = points_df[ points_df.groupby(['track'])['ptime'].transform(max) == points_df['ptime'] ]
+    # not sure: position_sr = points_df[ points_df.groupby(['track']) \
+    #    ['ptime'].transform(max) == points_df['ptime'] ]
 
-    # seems ok: print(points_df.sort_values('ptime', ascending=False).drop_duplicates(['track']))
-    position_df = points_df.sort_values('ptime', ascending=False).drop_duplicates(['track'])
+    position_df = points_df.sort_values('ptime', ascending=False)  \
+                           .drop_duplicates(['track'])
 
-    lgr.debug("position_df")
-    lgr.debug(position_df)
-    lgr.debug(type(position_df))
-    lgr.debug(position_df.columns)
-    lgr.debug("+++++++++")
+    # 5. while we're here, lets go ahead and make the GeoJson feature...
 
-    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    position_df['target_geom'] = position_df.apply(
+        lambda x: mapping(x['shp']), axis=1 )
 
-    # while we're here, lets go ahead and make the GeoJson feature...
+    # 5b. make propertie stanza of geojson
 
-    position_df['target_geom'] = position_df.apply( lambda x: json.dumps(mapping(x['shp'])), axis=1 )
+    position_df['props'] = position_df.apply(
+        lambda row: make_props(row['track']+off, row['acid'], row['actype']),
+        axis=1 )
 
-    lgr.debug("position_df")
-    lgr.debug(position_df)
-    lgr.debug(type(position_df))
-    lgr.debug(position_df.columns)
+    # 5c. make full features stanza of geojson
 
-    # +5b. make propertie stanza of geojson
-
-    position_df['props'] = position_df.apply( lambda row: make_props(row['track']+90000, row['acid'], row['actype']), axis=1 )
-
-    # +5c. make full features stanza of geojson
-
-    position_df['feat'] = position_df.apply( lambda row: make_feat(row['track']+90000, row['props'], row['target_geom']), axis=1 )
-
-    lgr.debug("====================")
-    lgr.debug("position_df")
-    lgr.debug(position_df)
-    lgr.debug(type(position_df))
-    lgr.debug(position_df.columns)
+    position_df['feat'] = position_df.apply(
+        lambda row: make_feat(row['track']+off,row['props'],row['target_geom']),
+        axis=1 )
 
     # clean up
-    position_df.drop(['acid','actype', 'props', 'ptime', 'position', 'shp', 'target_geom'], axis=1, inplace=True)
-
-    lgr.debug("%%%%%%%%%%%%%%%%%%%%")
-    lgr.debug("position_df")
-    lgr.debug(position_df)
-    lgr.debug(type(position_df))
-    lgr.debug(position_df.columns)
+    position_df.drop(['acid','actype', 'props', 'ptime',
+                      'position', 'shp', 'target_geom'], axis=1, inplace=True)
 
     return(position_df)
 
@@ -473,10 +432,10 @@ def using_postgis_and_pandas(lgr, then):
     # ---- make into FeatureColl
     # geojson lint said our crs was the default and thus redundant
 
-    fc = { "type": "FeatureCollection",
-            "features": features_df['feat'].tolist() + \
-                        target_df['feat'].tolist()
-         }
+    fc = geojson.FeatureCollection( \
+          features_df['feat'].tolist() +  target_df['feat'].tolist() )
+
+          #features_df['feat'].tolist()[:2] +  target_df['feat'].tolist()[:2] )
 
     lgr.debug("done")
 
@@ -495,8 +454,12 @@ def query_asdex( lgr, location ):
     then = datetime.datetime.now( tz=pytz.utc ) \
            - datetime.timedelta( minutes=go_back )
 
+    # ================= declared working Jan 6, 6:10pm:
+
     fc = using_postgis_and_pandas(lgr, then)
     return(fc)
+
+    # ================= OLD routines follow:
     # ----------------------
     if socket.gethostname() == 'JAWAXFL00172839':
 
@@ -533,4 +496,6 @@ if __name__ == "__main__NOT":
 
     print("+++++++")
     print(json.dumps(fc))
+    print(">>>>>>>")
+    pprint(fc)
 
