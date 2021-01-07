@@ -104,6 +104,9 @@ const unk_style   =new Style({ stroke: new Stroke({ color: 'brown',  width: 3.0 
 const plainStyle  =new Style({ stroke: new Stroke({ color: 'purple', width: 3.0 }) })
 const activeStyle =new Style({ stroke: new Stroke({ color: 'orange', width: 5.0 }) })
 
+const image_style = new Circle({ radius: 10,
+                                 fill: new Fill({ color: '#fff', }),
+                                 stroke: new Stroke({ color: '#F44336', }),   })
 // ==================================================================================
 
 const methods = {
@@ -132,18 +135,33 @@ console.log("inside loaderFactoryInner:", extent, resolution, projection);
         .then(response => response.json())
         .then(data =>  {
 
-          // clean up data (Q: how did postgis lete this happen??)
-          //NOT: let clean = this.removeDuplicates_2(data, 'id');
+          // clean up data
+          // NOTE: but ONLY for the Points, not the LineStrings
+          // which is track/id < 900000
 
           let dlist = [];
           for (let k = 0; k < data.features.length; k++) {
-              let elem = { track:  data.features[k].properties.track,
-                           acid:   data.features[k].properties.acid,
-                           actype: data.features[k].properties.actype  };
-              dlist.push(elem);
+              if (data.features[k].id < 900000) {
+                  let elem = { track:  data.features[k].properties.track,
+                               acid:   data.features[k].properties.acid,
+                               actype: data.features[k].properties.actype  };
+                  dlist.push(elem);
+              }
           }
 
-          this.$root.$emit('dlist', (dlist) );
+          // ---------------------------------
+          const sortedlist = dlist.sort(function(a, b) {
+              if (a.acid < b.acid) {
+                return -1; //nameA comes first
+              }
+              if (a.acid > b.acid) {
+                return 1; // nameB comes first
+              }
+              return 0;  // names must be equal
+            });
+          // ---------------------------------
+
+          this.$root.$emit('dlist', (sortedlist) );
 
           return(data);
        })
@@ -172,15 +190,7 @@ console.log("inside loaderFactoryInner:", extent, resolution, projection);
         // ------------------------------
         // can't be const because of feature acid:
         let targetStyle = new Style({
-          image: new Circle({
-            radius: 10,
-            fill: new Fill({
-                color: '#fff',
-            }),
-            stroke: new Stroke({
-              color: '#F44336',
-            }),
-          }),
+          image: image_style,
           text: new Text({
               text: String(feature.get('acid')), // get feature property
           }),
@@ -260,10 +270,13 @@ export default {
       this.kmlUrl = the_query;
     })
     // -------------------------
-    this.$root.$on('highlightthis', (the_track) => {
-      console.log("highlightthis rcvd:"+the_track);
+    this.$root.$on('highlightthis', (the_target) => {
+      console.log("highlightthis rcvd:"+the_target);
 
-      this.highLightMe = the_track;
+      the_target = the_target+900000;  // just the tracks, not the target
+
+      console.log("highLightMe:"+the_target);
+      this.highLightMe = the_target;
 
 // ================================  Q: does asdexStyleFuncFac replace this???
 
@@ -275,13 +288,18 @@ export default {
       // find the vector layer that has a Feature with this id
       const a_layer = this.$refs.map.getLayers().filter(layer => {
         return layer instanceof VectorLayer &&
-                   layer.getSource().getFeatureById(the_track)
+                   layer.getSource().getFeatureById(the_target)
       })
 
       // --------- this statement causes aSFF to fire with valid arguments
-      this.highlightedFeat = a_layer[0].getSource().getFeatureById(the_track);
+      if (a_layer[0] === undefined) {
+          console.log("could not find the_target=" + the_target)
+          } else {
 
-      this.highlightedFeat.setStyle(highlightSt);
+          this.highlightedFeat = a_layer[0].getSource().getFeatureById(the_target);
+
+          this.highlightedFeat.setStyle(highlightSt);
+      }
 
       // ================================
     })
