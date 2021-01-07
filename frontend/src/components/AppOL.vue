@@ -84,10 +84,10 @@
 
 import ZoomSlider from 'ol/control/ZoomSlider'
 import ScaleLine  from 'ol/control/ScaleLine'
-import Stroke     from 'ol/style/Stroke'
-import Style      from 'ol/style/Style'
 import KML        from 'ol/format/KML'
 
+import Stroke     from 'ol/style/Stroke'
+import Style      from 'ol/style/Style'
 import Text       from 'ol/style/Text'
 import Fill       from 'ol/style/Fill'
 import Circle     from 'ol/style/Circle'
@@ -95,18 +95,27 @@ import Circle     from 'ol/style/Circle'
 import { Vector as VectorLayer } from 'ol/layer'
 
 // ==========================================================
-const highlightSt =new Style({ stroke: new Stroke({ color: 'magenta',width: 5.0 }) })
-const undoStyle   =new Style({ stroke: new Stroke({ color: 'green',  width: 5.0 }) })
+
+// -------------- linestrings
+const unk_style   =new Style({ stroke: new Stroke({ color: 'brown',  width: 3.0 }) })
+const plainStyle  =new Style({ stroke: new Stroke({ color: 'purple', width: 3.0 }) })
+
+// -------------- unused linestrings (was going to be source_type)
 const src_s_style =new Style({ stroke: new Stroke({ color: 'green',  width: 3.0 }) })
 const src_f_style =new Style({ stroke: new Stroke({ color: 'blue',   width: 3.0 }) })
 const src_a_style =new Style({ stroke: new Stroke({ color: 'magenta',width: 3.0 }) })
-const unk_style   =new Style({ stroke: new Stroke({ color: 'brown',  width: 3.0 }) })
-const plainStyle  =new Style({ stroke: new Stroke({ color: 'purple', width: 3.0 }) })
-const activeStyle =new Style({ stroke: new Stroke({ color: 'orange', width: 5.0 }) })
 
+//const activeStyle =new Style({ stroke: new Stroke({ color: 'orange', width: 5.0 }) })
+//const highlightSt =new Style({ stroke: new Stroke({ color: 'magenta',width: 5.0 }) })
+//const undoStyle   =new Style({ stroke: new Stroke({ color: 'green',  width: 5.0 }) })
+
+// -------------- target symbols
 const image_style = new Circle({ radius: 10,
                                  fill: new Fill({ color: '#fff', }),
                                  stroke: new Stroke({ color: '#F44336', }),   })
+const image_h_style = new Circle({ radius: 20,
+                                 fill: new Fill({ color: 'yellow', }),
+                                 stroke: new Stroke({ color: 'green', }),   })
 // ==================================================================================
 
 const methods = {
@@ -192,17 +201,24 @@ console.log("inside loaderFactoryInner:", extent, resolution, projection);
         let targetStyle = new Style({
           image: image_style,
           text: new Text({
-              text: String(feature.get('acid')), // get feature property
+              text: String("tS:"+ feature.get('acid')),
+          }),
+        });
+        let targetHigh = new Style({
+          image: image_h_style,
+          text: new Text({
+              text: String("tH:"+ feature.get('acid')),
           }),
         })
 
         // ------------------------------
 
         if (feature.getGeometry().getType() == "Point") {
-              return targetStyle;
-        }
-        if (feature.key == this.highLightMe) {
-          return activeStyle;
+            if (feature.key == this.highLightMe) {
+                return targetHigh;
+            } else {
+                return targetStyle;
+            }
         }
         return plainStyle;
      }
@@ -273,7 +289,7 @@ export default {
     this.$root.$on('highlightthis', (the_target) => {
       console.log("highlightthis rcvd:"+the_target);
 
-      the_target = the_target+900000;  // just the tracks, not the target
+      // old: the_target = the_target+900000;  // just the tracks, not the target
 
       console.log("highLightMe:"+the_target);
       this.highLightMe = the_target;
@@ -282,7 +298,7 @@ export default {
 
       // turn off the previous one:
       if (this.highlightedFeat != 0) {
-          this.highlightedFeat.setStyle(undoStyle);
+          this.highlightedFeat.setStyle(image_style);
       }
 
       // find the vector layer that has a Feature with this id
@@ -296,9 +312,10 @@ export default {
           console.log("could not find the_target=" + the_target)
           } else {
 
+          console.log("highlighedFeat=" + the_target)
           this.highlightedFeat = a_layer[0].getSource().getFeatureById(the_target);
 
-          this.highlightedFeat.setStyle(highlightSt);
+          this.highlightedFeat.setStyle(image_h_style);
       }
 
       // ================================
