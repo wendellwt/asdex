@@ -35,7 +35,11 @@ export default {
 </script>
 
 <style lang="scss">
+.columns {
+    display: flex;
+    flex-direction: row; // this is default
+    align-items: stretch; // this will stretch the children vertically
+}
+
 </style>
-
-
 
