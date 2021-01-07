@@ -21,3 +21,8 @@ rsconnect deploy api --title $APP_TITLE --server http://172.26.21.40:3939 --api-
      copied/get_tracks.py \
      templates/index.html  $STATIC_FILES
 
+echo ""
+echo "the connect page (allows login):"
+echo "   http://172.26.21.40:3939/connect/#/apps/188"
+echo "the external page (no login):"
+echo "   http://172.26.21.40:3939/content/188/"
