@@ -10,12 +10,9 @@
        v-for="item in datablocks"
        :key="item.track"
        @click="datablocklist(item)" >
-
-    track: {{ item.track }}
-    <br/>
-    acid: {{ item.acid }}
-    <br/>
-    type: {{ item.actype }}
+    {{ item.acid }} &nbsp; &nbsp;
+    {{ item.actype }} &nbsp; &nbsp;
+    {{ item.track }}
   </li>
 
 </ul>
@@ -89,15 +86,15 @@ div.timestamp {
 
 li.datalist {
     border-style: solid;
-    border-color: black;
+    border-color: brown;
     background-color: #e6ffcc;
 
-    margin-top: 5px;
-    margin-bottom: 5px;
+    margin-top: 2px;
+    margin-bottom: 2px;
 }
 
 ul.scrolling {
-        max-height: 400px;
+        max-height: 600px;
         overflow: scroll;
 }
 

@@ -1,5 +1,5 @@
 <template>
-  <div style="background-color: orange">
+  <div style="background-color: orange; height: 600px">
 
     <!-- ========== map & view ========= -->
     <vl-map  :load-tiles-while-animating="true"
@@ -110,12 +110,12 @@ const src_a_style =new Style({ stroke: new Stroke({ color: 'magenta',width: 3.0 
 //const undoStyle   =new Style({ stroke: new Stroke({ color: 'green',  width: 5.0 }) })
 
 // -------------- target symbols
-const image_style = new Circle({ radius: 10,
-                                 fill: new Fill({ color: '#fff', }),
-                                 stroke: new Stroke({ color: '#F44336', }),   })
-const image_h_style = new Circle({ radius: 20,
-                                 fill: new Fill({ color: 'yellow', }),
-                                 stroke: new Stroke({ color: 'green', }),   })
+const image_circle = new Circle({ radius: 10,
+                             fill: new Fill({ color: '#fff', }),
+                             stroke: new Stroke({ color: '#F44336', }),   })
+const image_h_circle = new Circle({ radius: 15,
+                             fill: new Fill({ color: 'yellow', }),
+                             stroke: new Stroke({ color: 'green', }),   })
 // ==================================================================================
 
 const methods = {
@@ -199,16 +199,12 @@ console.log("inside loaderFactoryInner:", extent, resolution, projection);
         // ------------------------------
         // can't be const because of feature acid:
         let targetStyle = new Style({
-          image: image_style,
-          text: new Text({
-              text: String("tS:"+ feature.get('acid')),
-          }),
+          image: image_circle,
+          text: new Text({ text: String(feature.get('acid')), }),
         });
         let targetHigh = new Style({
-          image: image_h_style,
-          text: new Text({
-              text: String("tH:"+ feature.get('acid')),
-          }),
+          image: image_h_circle,
+          text: new Text({ text: String(feature.get('acid')), }),
         })
 
         // ------------------------------
@@ -287,18 +283,23 @@ export default {
     })
     // -------------------------
     this.$root.$on('highlightthis', (the_target) => {
-      console.log("highlightthis rcvd:"+the_target);
 
       // old: the_target = the_target+900000;  // just the tracks, not the target
 
-      console.log("highLightMe:"+the_target);
+      //console.log("highLightMe:"+the_target);
       this.highLightMe = the_target;
 
 // ================================  Q: does asdexStyleFuncFac replace this???
 
       // turn off the previous one:
       if (this.highlightedFeat != 0) {
-          this.highlightedFeat.setStyle(image_style);
+        // ------------------------------
+        // can't be const because of feature acid:
+        let targetStyle = new Style({
+          image: image_circle,
+          text: new Text({ text: String(this.highlightedFeat.get('acid')), }),
+        });
+          this.highlightedFeat.setStyle(targetStyle);
       }
 
       // find the vector layer that has a Feature with this id
@@ -312,10 +313,16 @@ export default {
           console.log("could not find the_target=" + the_target)
           } else {
 
-          console.log("highlighedFeat=" + the_target)
           this.highlightedFeat = a_layer[0].getSource().getFeatureById(the_target);
 
-          this.highlightedFeat.setStyle(image_h_style);
+              /// ------ need Style, not Circle!
+        let targetHigh = new Style({
+          image: image_h_circle,
+          text: new Text({ text: String(this.highlightedFeat.get('acid')), }),
+        })
+              /// ------
+
+          this.highlightedFeat.setStyle(targetHigh);
       }
 
       // ================================
@@ -333,4 +340,9 @@ export default {
 }
 
 </script>
+
+<style lang="scss">
+.map {
+    height: 90%;
+}
 
