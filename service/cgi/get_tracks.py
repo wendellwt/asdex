@@ -310,7 +310,7 @@ class NotLgr:  # pretend class to let lgr.info() work when not logging
 
 # ==========================================================================
 
-if __name__ == "__main__":
+if __name__ == "__main__NOT":
 
     lgr = NotLgr()
     print("hello sailor")
