@@ -30,13 +30,16 @@ import datetime
 import psycopg2
 import pandas as pd
 import geojson
-from sqlalchemy import create_engine
-from shapely.geometry import LineString
 import socket
+
+from sqlalchemy import create_engine
+from shapely.wkt import dumps, loads
+from shapely.geometry import LineString, mapping, shape
 
 # ------------------------------------------------------------------
 
-go_back = 1   # search back this many minutes
+go_back = 1    # search back this many minutes
+off = 900000   # offset from target id to linestring id
 
 #==========================================================
 
@@ -52,13 +55,7 @@ go_back = 1   # search back this many minutes
 
 if socket.gethostname() == 'acy_test_app_vm_rserver':
 
-    import geopandas as gpd
     # we're on Linux, under RConnect, with Flask
-
-    # ISSUE: need GeoPandas' to_json to put id adjacent to properites, not
-    # within it; hence this:
-    # SOULD BE: HAVE_gpd = True
-    HAVE_gpd = False
 
     # ISSUE: in RConnect deployment: use Settings panel to configure these
     connect_alchemy = "postgresql+psycopg2://"            + \
@@ -71,8 +68,6 @@ if socket.gethostname() == 'acy_test_app_vm_rserver':
 
 if socket.gethostname() == 'JAWAXFL00172839':
 
-    HAVE_gpd = False
-
     connect_alchemy = "postgresql+psycopg2://"            + \
                     os.environ.get('CSSI_USER')     + ':' + \
                     os.environ.get('CSSI_PASSWORD') + '@' + \
@@ -82,8 +77,6 @@ if socket.gethostname() == 'JAWAXFL00172839':
 # ------------------- asdi-db    (production under CherryPy)
 
 if socket.gethostname() == 'ASDI-DB':
-
-    HAVE_gpd = False
 
     # we're on Windows, under Service, with CherryPy
 
@@ -108,179 +101,13 @@ if socket.gethostname() == 'ASDI-DB':
 
 engine = create_engine(connect_alchemy)
 
-# ======================================================================
+# ########################################################################## #
+#                         everything but without geopandas                   #
+# ########################################################################## #
 
-# on Linux (rserver), we have geopandas, so do a simple query and do the
-# rest of the processing in GeoPandas
-
-def query_using_geopandas(lgr, then):
-
-    # when 'select ptime ' is included:
-    # TypeError: Object of type Timestamp is not JSON serializable
-
-    sql = "select track, position as geometry " + \
-          "from asdex " + \
-          "where lon is not null and lat is not null " + \
-          "and ptime is not null " +  \
-          "and ptime > '" + then.isoformat() + "' " + \
-          "order by track, ptime;"  # limit 5
-
-    lgr.info("calling get - asdex")
-    lgr.debug(sql)
-
-    # read postgis directly into GeoPandas, with position as geom
-    #    (but geom column is just a column of points)
-    points_gf = gpd.read_postgis(sql,con=engine, geom_col='geometry')
-
-    # the lambda LineString operation below barfs if less than 2 points
-    not_single_gf = points_gf.groupby('track').filter(
-                                                lambda x : len(x)>1)
-
-    # group the tracks together and make a linestring of the points
-    linestrings_gf = not_single_gf.groupby(['track'])['geometry']        \
-                                .apply(lambda x: LineString(x.tolist()))
-
-    # and force the linestring column to be the geometry column:
-    tracks_gf = gpd.GeoDataFrame(linestrings_gf, geometry='geometry')
-
-    lgr.info("num points returning:%d" % len(tracks_gf))  # works
-
-    if len(tracks_gf) == 0:
-        return None   # fail???, but what about json encoding???
-
-    fc = tracks_gf.to_json()
-
-    return(fc)
-
-# ======================================================================
-
-def get_path_lines(lgr, then):
-
-    # =========================== 1/3: id equal to properties
-    #   (for vuelayers fast load)
-
-    # https://gis.stackexchange.com/questions/14514/exporting-feature
-    #                                                   -geojson-from-postgis
-    #'properties', to_jsonb(row) - 'position'
-
-    sql = """ set time zone UTC;
-SELECT jsonb_build_object(
-    'type',       'Feature',
-    'id',         track,
-    'geometry',   ST_AsGeoJSON(linest)::jsonb,
-    'properties', to_jsonb(row) - 'linest'
-  ) AS feature
-  FROM (
- select track, acid, actype, ST_MakeLine(position)::geometry as linest
-    FROM (
-        select track, acid, actype, ptime, position
-        from asdex
-        where ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
-                          at time zone 'Etc/UTC'
-        and acid != 'unk'
-        order by track, ptime
-        ) as foo
-    group by track, acid, actype
-) row; """ % then
-
-    # ==========================================================
-
-    lgr.info("calling get - asdex")
-    lgr.debug(sql)
-
-    results = engine.execute(sql)
-    lgr.debug("done")
-
-    # ---- results is an interable QueryObject
-
-    #old: res = [ geojson.loads(row[0]) for row in results]
-    # new:
-    res_lines = [ row[0] for row in results]
-
-    return(res_lines)
-
-# ----------------------------------------------------------------------
-
-def get_path_points(lgr, then):
-
-    # =========================== 1/4: get last Point for a/c symbol
-    # 'id',         track,
-
-    sql = """ set time zone UTC;
-
-SELECT jsonb_build_object(
-    'type',       'Feature',
-    'geometry',   ST_AsGeoJSON(acpoint)::jsonb,
-    'properties', to_jsonb(row) - 'mtime' - 'acpoint'
-  ) AS feature
-  FROM ( select distinct a.track, a.acid, maxt.mtime, a.actype,
-         a.position::geometry as acpoint
-FROM
-( select distinct track, acid, actype, max(ptime) as mtime
-     from asdex
-      where ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
-                          at time zone 'Etc/UTC'
-     and acid != 'unk'
-     group by track, acid, actype
-) maxt,
-asdex a
-WHERE a.track  = maxt.track
-AND   a.acid   = maxt.acid
-AND   a.actype = maxt.actype
-AND   a.ptime  = maxt.mtime
-ORDER BY a.track
-) row;
-
-    ; """ % then
-
-    lgr.info("calling get - asdex")
-    lgr.debug(sql)
-
-    results = engine.execute(sql)
-    lgr.debug("done")
-
-    # ---- results is an interable QueryObject
-
-    res_points = [ row[0] for row in results ]
-
-    return(res_points)
-
-# ----------------------------------------------------------------------
-from pprint import pprint
-
-# on windows (asdi-db, without geopandas), do everything in PostGIS
-
-def query_using_postgis(lgr, then):
-
-    res_lines = get_path_lines(lgr, then)
-
-    res_points = get_path_points(lgr, then)
-
-    fc = geojson.FeatureCollection( res_points + res_lines )
-
-    return(fc)
-
-# #######################################################################
-
-def make_props(row_track, row_acid, row_actype):
-
-    return( { 'track':row_track, 'acid':row_acid, 'actype':row_actype } )
-
-def make_feat(row_id, row_props, row_geom):
-
-    return( geojson.Feature(geometry=row_geom, properties=row_props, id=row_id))
-
-# ############################################################## #
-#                 everything but without geopandas               #
-# ############################################################## #
-
-from shapely.geometry import mapping, shape
-from shapely.wkt import dumps, loads
-
-# ----------------------------------------------------------------
+# ---- 1. query for all position points (as text) ordered by ptime
 
 def query_for_points(lgr, then):
-    # ---- 1. query for all position points (as text) ordered by ptime
 
     sql = """ set time zone UTC;
 SELECT track, acid, actype, ptime, ST_AsText(position) as position
@@ -293,26 +120,65 @@ ORDER BY ptime ; """ % then
     lgr.info("calling get - asdex")
     lgr.debug(sql)
 
+    # ---- a. make text points into shapely points
+
     points_df = pd.read_sql(sql, con=engine)
 
     lgr.info(points_df)
 
-    # ---- 2. make text points into shapely points
+    # ---- b. make text points into shapely points
 
     points_df['shp'] = points_df.apply( lambda row: loads(row['position']),
                                        axis=1)
 
-    # groupby for track position doesn't like shapely's Point column
-    # but let's leave this one here for now...
+    # ---- c. clean up
+
+    # However, groupby for track position doesn't like shapely's Point column
+    # so let's leave the text one here for now...
     #points_df.drop('position', axis=1, inplace=True)
 
     return(points_df)
 
-# ------------------------------------------------------------------------
+# -----------------------------------------------------------------------
+
+# ---- 2. find point where to draw a/c target symbol
+
+def find_target_point(lgr, points_df):
+
+    # HEY, maybe this is how to do a '.groupby' and retain the datafraem
+    # (without it becoming a Series)
+    # NOPE, sometimed DUPLICATE TRACKs appear!!! :-(
+    # not sure: position_sr = points_df[ points_df.groupby(['track']) \
+    #    ['ptime'].transform(max) == points_df['ptime'] ]
+
+    # ---- a. get the point of each track with the largest(latest) time
+
+    position_df = points_df.sort_values('ptime', ascending=False)  \
+                           .drop_duplicates(['track'])
+
+    # ---- b. while we're here, lets go ahead and make the GeoJson feature...
+
+    #position_df['target_geom'] = position_df.apply(
+    position_df['geom'] = position_df.apply(
+        lambda x: mapping(x['shp']), axis=1 )
+
+    # ---- c. make propertie stanza of geojson
+
+    position_df['props'] = position_df.apply(lambda row: make_props(row),axis=1)
+
+    # ---- d. make full features stanza of geojson
+
+    position_df['feat'] = position_df.apply(lambda row: make_feat(row),axis=1 )
+
+    # ---- clean up
+    position_df.drop(['acid','actype', 'props', 'ptime',
+                      'position', 'shp', 'geom'], axis=1, inplace=True)
+
+    return(position_df)
+
+# -----------------------------------------------------------------------
 
 # ---- 3. make linestring (ptime order is preserved, correct?)
-
-# -- 3a: (as_index WORKS on faa laptop, NEEDS REMOVED # on asdi-db!!!)
 
 def make_path_linestrings(lgr, points_df):
 
@@ -335,87 +201,60 @@ def make_path_linestrings(lgr, points_df):
 
     lstring_df.columns = ['track','acid','actype', 'shp']  # shp column was '0'
 
-    # -- 3b: make sure strings have at least 2 points
+    # ---- b. make sure strings have at least 2 points
 
     lstring_df.drop(lstring_df[lstring_df['shp'].map(len) < 2].index,
                                                                  inplace=True)
 
-    # -- 3c: finally, make them into Shapely LineStrings
+    # ---- c. finally, make them into Shapely LineStrings
 
     lstring_df['path_ls'] = lstring_df.apply( lambda x: LineString(x['shp']),
                                                                  axis=1 )
 
-    lstring_df.drop('shp', axis=1, inplace=True)
+    # ---- d.  clean up (btw, sometimes track is None/na/empty!!!)
 
-    # ---- btw, clean up (sometimes track is None/na/empty!!!)
+    lstring_df.drop('shp', axis=1, inplace=True)
     clean_df = lstring_df.dropna()
 
     return(clean_df)
 
-# ----------------------------------------------------------------
+# -----------------------------------------------------------------------
 
-# ---- 5. make GeoJson column of linestring
+def make_props(row):
+
+    return( { 'track':row['track'], 'acid':row['acid'], 'actype':row['actype']})
+
+def make_feat(row):
+
+    return( geojson.Feature( geometry=row['geom'], properties=row['props'],
+                            id=row['track']))
+
+# -----------------------------------------------------------------------
+
+# ---- 4. make GeoJson column of Feature
 
 def make_features(lgr, linest_df):
 
-    # 5a. make geometry stanza of geojson
+    # ---- a. make geometry stanza of geojson
 
     linest_df['geom'] = linest_df.apply( lambda x: mapping(x['path_ls']),axis=1)
 
-    linest_df.drop('path_ls', axis=1, inplace=True)
+    # ---- b. make property stanza of geojson
 
-    # 5b. make propertie stanza of geojson
+    linest_df['track'] = linest_df['track'] + off
 
-    linest_df['props'] = linest_df.apply( lambda row:
-                   make_props(row['track'], row['acid'], row['actype']), axis=1)
+    linest_df['props'] = linest_df.apply( lambda row: make_props(row), axis=1)
 
-    # 5c. make full features stanza of geojson
+    # ---- c. make full features stanza of geojson
 
-    linest_df['feat'] = linest_df.apply( lambda row:
-                   make_feat(row['track'], row['props'], row['geom']), axis=1)
+    linest_df['feat'] = linest_df.apply( lambda row: make_feat(row), axis=1)
 
-    # clean up
-    linest_df.drop(['acid','actype', 'props','geom'], axis=1, inplace=True)
+    # ---- d. clean up
+
+    linest_df.drop(['acid','actype', 'props',
+                    'geom', 'path_ls'], axis=1, inplace=True)
 
     return(linest_df)
-
-# ----------------------------------------------------------------
-
-off = 90000
-
-def find_latest_point(lgr, points_df):
-
-    # HEY, maybe this is how to do a '.groupby' and retain the datafraem
-    # (without it becoming a Series)
-    # NOPE, sometimed DUPLICATE TRACKs appear!!! :-(
-    # not sure: position_sr = points_df[ points_df.groupby(['track']) \
-    #    ['ptime'].transform(max) == points_df['ptime'] ]
-
-    position_df = points_df.sort_values('ptime', ascending=False)  \
-                           .drop_duplicates(['track'])
-
-    # 5. while we're here, lets go ahead and make the GeoJson feature...
-
-    position_df['target_geom'] = position_df.apply(
-        lambda x: mapping(x['shp']), axis=1 )
-
-    # 5b. make propertie stanza of geojson
-
-    position_df['props'] = position_df.apply(
-        lambda row: make_props(row['track']+off, row['acid'], row['actype']),
-        axis=1 )
-
-    # 5c. make full features stanza of geojson
-
-    position_df['feat'] = position_df.apply(
-        lambda row: make_feat(row['track']+off,row['props'],row['target_geom']),
-        axis=1 )
-
-    # clean up
-    position_df.drop(['acid','actype', 'props', 'ptime',
-                      'position', 'shp', 'target_geom'], axis=1, inplace=True)
-
-    return(position_df)
 
 # =========================================================================
 
@@ -423,19 +262,17 @@ def using_postgis_and_pandas(lgr, then):
 
     points_df = query_for_points(lgr, then)
 
-    target_df = find_latest_point(lgr, points_df)
+    target_df = find_target_point(lgr, points_df)
 
     linest_df = make_path_linestrings(lgr, points_df)
 
     features_df = make_features(lgr, linest_df)
 
     # ---- make into FeatureColl
-    # geojson lint said our crs was the default and thus redundant
+    # (geojson lint said our crs was the default and thus redundant)
 
     fc = geojson.FeatureCollection( \
           features_df['feat'].tolist() +  target_df['feat'].tolist() )
-
-          #features_df['feat'].tolist()[:2] +  target_df['feat'].tolist()[:2] )
 
     lgr.debug("done")
 
@@ -454,32 +291,16 @@ def query_asdex( lgr, location ):
     then = datetime.datetime.now( tz=pytz.utc ) \
            - datetime.timedelta( minutes=go_back )
 
-    # ================= declared working Jan 6, 6:10pm:
-
     fc = using_postgis_and_pandas(lgr, then)
-    return(fc)
-
-    # ================= OLD routines follow:
-    # ----------------------
-    if socket.gethostname() == 'JAWAXFL00172839':
-
-        fc = using_postgis_and_pandas(lgr, then)
-
-    # ---------------------- regular (i.e., old)
-    else:
-        if HAVE_gpd:
-            fc = query_using_geopandas(lgr, then)
-        else:
-            fc = query_using_postgis(lgr, then)
-    ### ----------------------
 
     return(fc)
 
-# ############################################################## #
-#                        standalone main                         #
-# ############################################################## #
+# ######################################################################## #
+#                              standalone main                             #
+# ######################################################################## #
 
 import json
+from pprint import pprint
 
 class NotLgr:  # pretend class to let lgr.info() work when not logging
     def info(self, s):
@@ -487,7 +308,9 @@ class NotLgr:  # pretend class to let lgr.info() work when not logging
     def debug(self, s):
         print(s)
 
-if __name__ == "__main__NOT":
+# ==========================================================================
+
+if __name__ == "__main__":
 
     lgr = NotLgr()
     print("hello sailor")
