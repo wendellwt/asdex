@@ -97,19 +97,15 @@ import { Vector as VectorLayer } from 'ol/layer'
 // ==========================================================
 
 // -------------- linestrings
-const unk_style   =new Style({ stroke: new Stroke({ color: 'brown',  width: 3.0 }) })
 const plainStyle  =new Style({ stroke: new Stroke({ color: 'purple', width: 3.0 }) })
 
 // -------------- unused linestrings (was going to be source_type)
 const src_s_style =new Style({ stroke: new Stroke({ color: 'green',  width: 3.0 }) })
 const src_f_style =new Style({ stroke: new Stroke({ color: 'blue',   width: 3.0 }) })
 const src_a_style =new Style({ stroke: new Stroke({ color: 'magenta',width: 3.0 }) })
+const unk_style   =new Style({ stroke: new Stroke({ color: 'brown',  width: 3.0 }) })
 
-//const activeStyle =new Style({ stroke: new Stroke({ color: 'orange', width: 5.0 }) })
-//const highlightSt =new Style({ stroke: new Stroke({ color: 'magenta',width: 5.0 }) })
-//const undoStyle   =new Style({ stroke: new Stroke({ color: 'green',  width: 5.0 }) })
-
-// -------------- target symbols
+// -------------- target circles (Style needs (dynamic) acid)
 const image_circle = new Circle({ radius: 10,
                              fill: new Fill({ color: '#fff', }),
                              stroke: new Stroke({ color: '#F44336', }),   })
@@ -118,8 +114,22 @@ const image_h_circle = new Circle({ radius: 15,
                              stroke: new Stroke({ color: 'green', }),   })
 // ==================================================================================
 
+const tgt_offs = 900000;  // added to target id (track) to get linestring id
+
 const methods = {
 
+    // ==========================================================
+    norm_tgt_Style(acid) {
+        return new Style({
+          image: image_circle,
+          text: new Text({ text: String(acid), }),
+        })},
+
+    high_tgt_Style(acid) {
+        return new Style({
+          image: image_h_circle,
+          text: new Text({ text: String(acid) }),
+        })},
     // ==========================================================
     // https://firstclassjs.com/remove-duplicate-objects-from-javascript-array-how-to-performance-comparison/
     // TypeError: array.filter is not a function
@@ -133,12 +143,12 @@ const methods = {
 
     // ==========================================================
     loaderFactoryOuter() {
-      return (extent, resolution, projection) => this.loaderFactoryInner(extent, resolution, projection)
+      return (extent, resolution, projection) => this.loaderFactoryInner(
+                                                  extent, resolution, projection)
     },
 
     loaderFactoryInner(extent, resolution, projection) {
-
-console.log("inside loaderFactoryInner:", extent, resolution, projection);
+console.log("lint" + extent+ resolution+ projection)
 
       return fetch(this.asdexUrl)
         .then(response => response.json())
@@ -150,7 +160,7 @@ console.log("inside loaderFactoryInner:", extent, resolution, projection);
 
           let dlist = [];
           for (let k = 0; k < data.features.length; k++) {
-              if (data.features[k].id < 900000) {
+              if (data.features[k].id < tgt_offs) {
                   let elem = { track:  data.features[k].properties.track,
                                acid:   data.features[k].properties.acid,
                                actype: data.features[k].properties.actype  };
@@ -197,23 +207,12 @@ console.log("inside loaderFactoryInner:", extent, resolution, projection);
 //              this.highLightMe + ',' + feature.getGeometry().getType() );
 
         // ------------------------------
-        // can't be const because of feature acid:
-        let targetStyle = new Style({
-          image: image_circle,
-          text: new Text({ text: String(feature.get('acid')), }),
-        });
-        let targetHigh = new Style({
-          image: image_h_circle,
-          text: new Text({ text: String(feature.get('acid')), }),
-        })
-
-        // ------------------------------
 
         if (feature.getGeometry().getType() == "Point") {
             if (feature.key == this.highLightMe) {
-                return targetHigh;
+                return this.high_tgt_Style(feature.get('acid'));
             } else {
-                return targetStyle;
+                return this.norm_tgt_Style(feature.get('acid'));
             }
         }
         return plainStyle;
@@ -284,29 +283,22 @@ export default {
     // -------------------------
     this.$root.$on('highlightthis', (the_target) => {
 
-      // old: the_target = the_target+900000;  // just the tracks, not the target
-
-      //console.log("highLightMe:"+the_target);
       this.highLightMe = the_target;
 
 // ================================  Q: does asdexStyleFuncFac replace this???
 
       // turn off the previous one:
       if (this.highlightedFeat != 0) {
-        // ------------------------------
-        // can't be const because of feature acid:
-        let targetStyle = new Style({
-          image: image_circle,
-          text: new Text({ text: String(this.highlightedFeat.get('acid')), }),
-        });
-          this.highlightedFeat.setStyle(targetStyle);
+
+          let acid = this.highlightedFeat.get('acid');
+          this.highlightedFeat.setStyle(this.norm_tgt_Style(acid));
       }
 
       // find the vector layer that has a Feature with this id
       const a_layer = this.$refs.map.getLayers().filter(layer => {
-        return layer instanceof VectorLayer &&
+          return layer instanceof VectorLayer &&
                    layer.getSource().getFeatureById(the_target)
-      })
+          })
 
       // --------- this statement causes aSFF to fire with valid arguments
       if (a_layer[0] === undefined) {
@@ -315,14 +307,8 @@ export default {
 
           this.highlightedFeat = a_layer[0].getSource().getFeatureById(the_target);
 
-              /// ------ need Style, not Circle!
-        let targetHigh = new Style({
-          image: image_h_circle,
-          text: new Text({ text: String(this.highlightedFeat.get('acid')), }),
-        })
-              /// ------
-
-          this.highlightedFeat.setStyle(targetHigh);
+          let acid = this.highlightedFeat.get('acid');
+          this.highlightedFeat.setStyle(this.high_tgt_Style(acid));
       }
 
       // ================================
