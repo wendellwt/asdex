@@ -153,9 +153,15 @@ const methods = {
 
     loaderFactoryInner(extent, resolution, projection) {
 console.log("lint" + extent+ resolution+ projection)
+console.log("new fetch");
+      //return fetch(this.asdexUrl)
+      //  .then(response => response.json())
 
-      return fetch(this.asdexUrl)
-        .then(response => response.json())
+        return fetch(this.asdexUrl , {
+          mode: 'cors'
+        }
+        ).then(response => response.json())
+
         .then(data =>  {
 
           // clean up data
@@ -320,10 +326,13 @@ export default {
 
     // -------------------------
     this.$root.$on('asdexurl', (the_query) => {
-      console.log("asdex::"+the_query);
-
+      //console.log("asdex::"+the_query);
+      let prefix = "http://asdi-db.cssiinc.com:8080/"
+      //            http://asdi-db.cssiinc.com:8080/get_asdex?apt=IAD&rand=73246
       // this fires off loaderFactory via vl-source-vector which does the actual fetch
-      this.asdexUrl = the_query;
+      let url_to_fetch = prefix + the_query;
+      console.log(url_to_fetch);
+      this.asdexUrl = url_to_fetch;
     })
   }, // ---- mounted
 
