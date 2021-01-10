@@ -1,5 +1,6 @@
 # ignore the node_modules directory
 frontend/node_modules/
+frontend/.vscode/
 
 # Ignore the build/deploy directories
 service/code/
@@ -10,3 +11,7 @@ rs_deploy/copied/
 # credentials when under Windows Service
 service/cgi/.winsvc.toml
 
+# my own:
+frontend/vue.config.js
+frontend/debug.log
+frontend/dist/
