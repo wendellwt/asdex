@@ -6,7 +6,7 @@
 # /cygdrive/c/Users/wturner/Python37/python.exe SwimService.py  start
 # ... Starting service CherryPyService
 
-# =========================== to production:
+# =========================== in production:
 
 # start the "CherryPy Service" using the "Services(Local)" tab in Services
 
@@ -15,6 +15,10 @@
 #  tail -f /cygdrive/c/temp/cherrypy_access.log
 #  tail -f /cygdrive/c/temp/cherrypy_error.log
 #  tail -f /cygdrive/c/temp/swimservice.log
+
+# =========================== to install extra stuff:
+
+# /cygdrive/c/Users/wturner/Python37/python.exe -m pip install cherrypy_cors
 
 #===================================================================
 
@@ -30,6 +34,11 @@ import win32service
 
 import sys
 import os
+
+# jan 10: cors attempt
+
+import cherrypy_cors
+cherrypy_cors.install()
 
 #===================================================================
 
@@ -167,6 +176,9 @@ class SwimService(win32serviceutil.ServiceFramework):
 
                 # BAD! enabling this works for an index, but MESSES UP ajax!!
                 #'tools.staticdir.index': os.path.join(code_path,'index.html')
+
+                # jan10:
+                'cors.expose.on': True,
             },
         })
 
