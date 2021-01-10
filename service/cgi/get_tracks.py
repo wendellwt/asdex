@@ -107,6 +107,10 @@ engine = create_engine(connect_alchemy)
 
 # ---- 1. query for all position points (as text) ordered by ptime
 
+# >>> jan 10: added ST_DWithin on IAD to make result set smaller
+# >>> jan 10: NO navaids or fixes on asdi-db, FIXED to kiad loc
+# >>> jan 10: made IAD dist really small: 0.3
+
 def query_for_points(lgr, then):
 
     sql = """ set time zone UTC;
@@ -115,6 +119,7 @@ FROM asdex
 WHERE ptime > to_timestamp('%s', 'YYYY-MM-DD HH24:MI:SS')
                           AT TIME ZONE 'Etc/UTC'
 AND acid != 'unk'
+AND ST_DWithin(position, ST_SetSRID(ST_MakePoint(-77.4599444, 38.9474444),4326),0.3)
 ORDER BY ptime ; """ % then
 
     lgr.info("calling get - asdex")
@@ -228,6 +233,8 @@ def make_feat(row):
 
     return( geojson.Feature( geometry=row['geom'], properties=row['props'],
                             id=row['track']))
+
+                            #help:id=str(row['track'])))
 
 # -----------------------------------------------------------------------
 
