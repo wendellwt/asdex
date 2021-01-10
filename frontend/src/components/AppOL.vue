@@ -28,8 +28,9 @@
 
       -->
       <vl-layer-vector >
-        <vl-source-vector :url="geojsonUrl"
-                          :features.sync="geojFeatures" />
+        <vl-source-vector  :url="geojsonUrl"
+                           :features.sync="geojFeatures" />
+
         <vl-style-func :factory="geojStyleFuncFactory"></vl-style-func>
       </vl-layer-vector>
 
@@ -48,8 +49,8 @@
 
 <!-- ============ use loader-factory ============ -->
         <vl-source-vector
-                  :features.sync="asdexFeatures"
                   :url="asdexUrl"
+                  :features.sync="asdexFeatures"
                   :loader-factory="loaderFactoryOuter"
                   />
 
@@ -142,6 +143,9 @@ const methods = {
     },
 
     // ==========================================================
+    //  WARNING: this ONLY works on a specific version of vuelayers:
+    //   package.json:    "vuelayers": "0.11.22"
+
     loaderFactoryOuter() {
       return (extent, resolution, projection) => this.loaderFactoryInner(
                                                   extent, resolution, projection)
@@ -170,17 +174,16 @@ console.log("lint" + extent+ resolution+ projection)
 
           // ---------------------------------
           const sortedlist = dlist.sort(function(a, b) {
-              if (a.acid < b.acid) {
-                return -1; //nameA comes first
-              }
-              if (a.acid > b.acid) {
-                return 1; // nameB comes first
-              }
-              return 0;  // names must be equal
+              if (a.acid < b.acid) { return -1; }
+              if (a.acid > b.acid) { return  1; }
+              return 0;
             });
           // ---------------------------------
 
           this.$root.$emit('dlist', (sortedlist) );
+
+console.log("returning data:");
+console.log(data);
 
           return(data);
        })
@@ -272,7 +275,8 @@ export default {
     this.$root.$on('geojsonurl', (the_query) => {
       console.log("geojson:"+the_query);
 
-      this.geojsonUrl = the_query;   // << that's all we have to do!
+      // this.geojsonUrl = the_query;   // << that's all we have to do!
+      this.geojsonUrl = "https://openlayers.org/en/latest/examples/data/geojson/countries.geojson";
     })
     // -------------------------
     this.$root.$on('kmlurl', (the_query) => {
