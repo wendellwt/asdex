@@ -31,6 +31,18 @@ deploy:
 endif
 
 # ------------------------------------------------
+ifeq ($(shell hostname),wwtlaptop)
+
+vue.config.js:
+	@cp home.config.js vue.config.js
+	echo "home laptop config"
+
+deploy:
+	@echo "not sure what to do"
+
+endif
+
+# ------------------------------------------------
 
 prod: vue.config.js
 	npm run-script build
