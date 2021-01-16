@@ -48,6 +48,7 @@ our_path = os.path.abspath( os.path.dirname(__file__))
 # make (either cygwin or dos) path to cgi and code dirs
 cgi_path  = os.path.join( our_path, 'cgi' )
 code_path = os.path.join( our_path, 'code' )
+fvf_path  = os.path.join( our_path, 'fvf_code' )
 
 # and append that to the pythonpath
 sys.path.append(cgi_path)
@@ -179,6 +180,16 @@ class SwimService(win32serviceutil.ServiceFramework):
 
                 # jan10:
                 'cors.expose.on': True,
+            },
+            '/fvf': {
+                # --- all of this moved to srv.conf ---
+                # --- which waas BAD, Swim() NEEDS these here!
+                'tools.staticdir.on': True,
+                'tools.staticdir.root': fvf_path,
+                'tools.staticdir.dir':  fvf_path,
+
+                # jan 16: removed for this one for now
+                #'cors.expose.on': True,
             },
         })
 
